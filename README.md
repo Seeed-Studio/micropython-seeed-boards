@@ -36,7 +36,9 @@ To build the MicroPython firmware for the Seeed Xiao nRF54L15 or Xiao nRF52840, 
 
 ### For Xiao nRF54L15
 ```bash
-west build ./lib/micropython/ports/zephyr --pristine --board xiao_nrf54l15/nrf54l15/cpuapp --sysbuild -- -DBOARD_ROOT=./
+export BOARD_TARGET=xiao_nrf54l15_nrf54l15_cpuapp
+export PROJECT_DIR=$(pwd)
+west build ./lib/micropython/ports/zephyr --pristine --board xiao_nrf54l15/nrf54l15/cpuapp --sysbuild -- -DBOARD_ROOT=$PROJECT_DIR/ -DEXTRA_DTC_OVERLAY_FILE=$PROJECT_DIR/boards/xiao_nrf54l15_nrf54l15_cpuapp.overlay
 ```
 
 ### For Xiao nRF52840

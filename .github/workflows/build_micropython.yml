@@ -54,7 +54,7 @@ jobs:
       - name: Build for Xiao nRF54L15
         run: |
           source zephyrproject/zephyr/zephyr-env.sh
-          west build ./lib/micropython/ports/zephyr --pristine --board xiao_nrf54l15/nrf54l15/cpuapp --sysbuild -- -DBOARD_ROOT=$GITHUB_WORKSPACE
+          west build ./lib/micropython/ports/zephyr --pristine --board xiao_nrf54l15/nrf54l15/cpuapp --sysbuild -- -DBOARD_ROOT=$GITHUB_WORKSPACE -DEXTRA_DTC_OVERLAY_FILE=$GITHUB_WORKSPACE/boards/xiao_nrf54l15_nrf54l15_cpuapp.overlay
         env:
           ZEPHYR_SDK_INSTALL_DIR: ~/zephyr-sdk/zephyr-sdk-0.17.0
 
