@@ -23,7 +23,7 @@ Before building the MicroPython firmware, ensure you have the following:
 2. **MicroPython Repository**:
    - Clone the MicroPython repository to your local machine:
      ```bash
-     git clone https://github.com/micropython/micropython.git
+     git clone --recurse-submodules https://github.com/Seeed-Studio/micropython-seeed-boards.git
      ```
 
 4. **Dependencies**:
@@ -36,9 +36,9 @@ To build the MicroPython firmware for the Seeed Xiao nRF54L15 or Xiao nRF52840, 
 
 ### For Xiao nRF54L15
 ```bash
-export BOARD_TARGET=xiao_nrf54l15_nrf54l15_cpuapp
 export PROJECT_DIR=$(pwd)
-west build ./lib/micropython/ports/zephyr --pristine --board xiao_nrf54l15/nrf54l15/cpuapp --sysbuild -- -DBOARD_ROOT=$PROJECT_DIR/ -DEXTRA_DTC_OVERLAY_FILE=$PROJECT_DIR/boards/xiao_nrf54l15_nrf54l15_cpuapp.overlay
+west build ./lib/micropython/ports/zephyr --pristine --board xiao_nrf54l15/nrf54l15/cpuapp --sysbuild -- \
+ -DBOARD_ROOT=$PROJECT_DIR/ -DEXTRA_DTC_OVERLAY_FILE=$PROJECT_DIR/boards/xiao_nrf54l15_nrf54l15_cpuapp.overlay
 ```
 
 ### For Xiao nRF52840
@@ -58,12 +58,14 @@ For a smaller firmware size (below 128KB, with minimal features like UART REPL),
 
 #### For Xiao nRF54L15
 ```bash
-west build ./lib/micropython/ports/zephyr --pristine --board xiao_nrf54l15/nrf54l15/cpuapp --sysbuild -- -DBOARD_ROOT=./ -DCONF_FILE=prj_minimal.conf
+export PROJECT_DIR=$(pwd)
+west build ./lib/micropython/ports/zephyr --pristine --board xiao_nrf54l15/nrf54l15/cpuapp --sysbuild -- \
+ -DBOARD_ROOT=$PROJECT_DIR/ -DEXTRA_DTC_OVERLAY_FILE=$PROJECT_DIR/boards/xiao_nrf54l15_nrf54l15_cpuapp.overlay -DCONF_FILE=./lib/micropython/ports/zephyr/prj_minimal.conf
 ```
 
 #### For Xiao nRF52840
 ```bash
-west build ./lib/micropython/ports/zephyr --pristine --board xiao_ble -- -DCONF_FILE=prj_minimal.conf
+west build ./lib/micropython/ports/zephyr --pristine --board xiao_ble -- -DCONF_FILE=./lib/micropython/ports/zephyr/prj_minimal.conf
 ```
 
 ### Notes
@@ -101,7 +103,7 @@ import time
 from machine import Pin
 
 # Adjust the GPIO pin according to the Xiao nRF54L15 board's pinout
-LED = Pin(("gpio0", 2), Pin.OUT)
+LED = Pin(("gpio2", 0), Pin.OUT)
 while True:
     LED.value(1)
     time.sleep(0.5)
