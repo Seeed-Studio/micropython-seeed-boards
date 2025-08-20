@@ -1,0 +1,59 @@
+name: Build MicroPython Firmware for Seeed Xiao Esp32c5
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  release:
+    types: [ created ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout MicroPython
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: Clone ESP-IDF
+        run: |
+          sudo apt-get update
+          sudo apt-get install git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 gh
+          cd ~
+          git clone -b v5.5 --recursive https://github.com/espressif/esp-idf.git
+          cd ~/esp-idf
+          git submodule update --init --recursive
+          ./install.sh esp32c5
+          . ./export.sh
+
+      - name: Build ESP32-C5 firmware
+        run: |
+          . ~/esp-idf/export.sh
+          cd lib/micropython
+          gh pr checkout 17912
+          make -C mpy-cross
+          cd ports/esp32
+          rm -rf build-ESP32_GENERIC
+          make BOARD=SEEED_XIAO_ESP32C5
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32c5-firmware
+          path: lib/micropython/ports/esp32/build-SEEED_XIAO_ESP32C5/firmware.bin
+
+      # Upload Xiao nRF52840 artifacts to Release (only on release event)
+      - name: Upload Xiao esp32c5 artifacts to Release
+        if: github.event_name == 'release'
+        run: |
+          mv lib/micropython/ports/esp32/build-SEEED_XIAO_ESP32C5/firmware.bin lib/micropython/ports/esp32/build-SEEED_XIAO_ESP32C5/micropython_xiao_esp32c5.bin
+          gh release upload ${{ github.event.release.tag_name }} \
+            lib/micropython/ports/esp32/build-SEEED_XIAO_ESP32C5/micropython_xiao_esp32c5.bin \
+            --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
