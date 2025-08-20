@@ -7,28 +7,28 @@ This README provides instructions for building and running MicroPython firmware 
 Before building the MicroPython firmware, ensure you have the following:
 
 1. **Zephyr Development Environment**:
-   - Install the Zephyr SDK and set up the development environment by following the [Zephyr Getting Started Guide](https://docs.zephyrproject.org/latest/getting_started/index.html).
-   - Ensure you have Zephyr version 4.0 or later installed, as the Xiao nRF54L15 requires a recent version due to its nRF54L15 SoC.
-   - Example command to initialize Zephyr v4.0.0:
-     ```bash
-     west init zephyrproject -m https://github.com/zephyrproject-rtos/zephyr --mr v4.0.0
-     cd zephyrproject/zephyr
-     west update
-     ```
-   - Source the Zephyr environment:
-     ```bash
-     source zephyrproject/zephyr/zephyr-env.sh
-     ```
+    - Install the Zephyr SDK and set up the development environment by following the [Zephyr Getting Started Guide](https://docs.zephyrproject.org/latest/getting_started/index.html).
+    - Ensure you have Zephyr version 4.0 or later installed, as the Xiao nRF54L15 requires a recent version due to its nRF54L15 SoC.
+    - Example command to initialize Zephyr v4.0.0:
+      ```bash
+      west init zephyrproject -m https://github.com/zephyrproject-rtos/zephyr --mr v4.0.0
+      cd zephyrproject/zephyr
+      west update
+      ```
+    - Source the Zephyr environment:
+      ```bash
+      source zephyrproject/zephyr/zephyr-env.sh
+      ```
 
 2. **MicroPython Repository**:
-   - Clone the MicroPython repository to your local machine:
-     ```bash
-     git clone --recurse-submodules https://github.com/Seeed-Studio/micropython-seeed-boards.git
-     ```
+    - Clone the MicroPython repository to your local machine:
+      ```bash
+      git clone --recurse-submodules https://github.com/Seeed-Studio/micropython-seeed-boards.git
+      ```
 
 4. **Dependencies**:
-   - Install required tools: Python 3.10 or later, CMake 3.20.0 or later, and the Zephyr SDK toolchain.
-   - Verify the installation by building a sample Zephyr application to confirm your setup.
+    - Install required tools: Python 3.10 or later, CMake 3.20.0 or later, and the Zephyr SDK toolchain.
+    - Verify the installation by building a sample Zephyr application to confirm your setup.
 
 ## Building the Firmware
 
@@ -67,6 +67,15 @@ west build ./lib/micropython/ports/zephyr --pristine --board xiao_nrf54l15/nrf54
 ```bash
 west build ./lib/micropython/ports/zephyr --pristine --board xiao_ble -- -DCONF_FILE=./lib/micropython/ports/zephyr/prj_minimal.conf
 ```
+
+#### For Xiao esp32c5
+* For the MicroPython firmware of the Seeed XIAO ESP32C5, a CI (Continuous Integration) automatic compilation workflow has been added. You only need to download the corresponding firmware from the release and use the appropriate flashing method.
+* Here, the esptool tool is recommended for flashing. It should be noted that when flashing the MicroPython firmware, **the starting address must be specified as 0x2000.**
+```bash
+# e.g. Flashing the Firmware
+esptool.py --chip esp32c5 --port /dev/cu.usbmodem11301 --baud 460800 write_flash -z 0x2000 micropython_xiao_esp32c5.bin
+```
+
 
 ### Notes
 - If you encounter issues with undefined Kconfig symbols (e.g., `NET_SOCKETS_POSIX_NAMES`), check the `lib/micropython/ports/zephyr/prj.conf` file and comment out or remove unsupported configurations.
