@@ -4,6 +4,95 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/ {
+    zephyr,user {
+        io-channels = <&adc 0>, <&adc 1>, <&adc 2>, <&adc 3>, <&adc 4>, <&adc 5>, <&adc 6>, <&adc 7>;
+    };
+
+};
+
+/ {
+	chosen {
+		zephyr,rtc = &pfc8563_rtc;
+	};
+    
+	aliases {
+		rtc = &pfc8563_rtc;
+	};
+};
+
+&xiao_i2c {
+	status = "okay";
+
+	pfc8563_rtc: pfc8563@51 {
+		compatible = "nxp,pcf8563";
+		reg = <0x51>;
+		status = "okay";
+	};
+};
+
+
+&pwm20 {
+    status = "okay";
+	pinctrl-0 = <&pwm20_default>;
+	pinctrl-1 = <&pwm20_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+&pinctrl {
+    pwm20_default: pwm20_default {
+        group1 {
+            psels = <NRF_PSEL(PWM_OUT0, 1, 4)>;
+        };
+        group2 {
+            psels = <NRF_PSEL(PWM_OUT1, 1, 5)>;
+        };
+		group3 {
+            psels = <NRF_PSEL(PWM_OUT2, 1, 6)>;
+        };
+        group4 {
+            psels = <NRF_PSEL(PWM_OUT3, 1, 7)>;
+		};
+    };
+
+    pwm20_sleep: pwm20_sleep {
+        group1 {
+            psels = <NRF_PSEL(PWM_OUT0, 1, 4)>;
+            low-power-enable;
+        };
+        group2 {
+            psels = <NRF_PSEL(PWM_OUT1, 1, 5)>;
+            low-power-enable;
+        };
+		group3 {
+            psels = <NRF_PSEL(PWM_OUT2, 1, 6)>;
+            low-power-enable;
+        };
+        group4 {
+            psels = <NRF_PSEL(PWM_OUT3, 1, 7)>;
+            low-power-enable;
+		};
+    };
+};
+
+/ {
+	fstab {
+		compatible = "zephyr,fstab";
+		lfs1: lfs1 {
+			compatible = "zephyr,fstab,littlefs";
+			mount-point = "/flash";
+			partition = <&storage_partition>;
+			automount;
+			read-size = <32>;
+			prog-size = <32>;
+			cache-size = <128>;
+			lookahead-size = <64>;
+			block-cycles = <2048>;
+		};
+	};
+};
+
 &wdt31 {
 	status = "okay";
 };
+
