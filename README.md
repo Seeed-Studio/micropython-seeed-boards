@@ -123,6 +123,44 @@ while True:
 
 To enter paste mode in the REPL, press `Ctrl+E`, paste your code, and press `Ctrl+D` to execute.
 
+## Recommended Thonny IDE for MicroPython
+
+Install and open thonny, then configure Thonny following the instruction:
+
+```bash
+pip install thonny
+#open thonny after installation
+thonny
+```
+
+Go to Run-->Configure Interpreter, select "MicroPython (generic)" and port, then clicking OK, select the port in the lower right corner, usually showing as MicroPython(generic) · Virtual COM-Port @COMX.
+
+Then go to File->Open, select MicroPython device, copy the example/boards folder to the file system, and click OK. You can then open the example program in the example directory through Thonny and press `F5` to run it:
+
+```python
+import time
+from boards.xiao import XiaoPin
+
+led = "led"
+
+try:
+    # Initialize LED
+    led = XiaoPin(led, XiaoPin.OUT)
+    while True:
+        # LED 0.5 seconds on, 0.5 seconds off
+        led.value(1)
+        time.sleep(0.5)
+        led.value(0)
+        time.sleep(0.5)
+except KeyboardInterrupt:
+    print("\nProgram interrupted by user")
+except Exception as e:
+    print("\nError occurred: %s" % {e})
+finally:
+    led.value(1)
+```
+
+
 ## Features
 The MicroPython Zephyr port supports:
 - REPL over UART console.
