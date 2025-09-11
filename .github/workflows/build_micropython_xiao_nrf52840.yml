@@ -1,12 +1,12 @@
-name: Build MicroPython Firmware for Seeed Xiao nRF54L15 and nRF52840
+name: Build MicroPython Firmware for Seeed Xiao nRF52840
 
 on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
-  release:
-    types: [ created ]
+  workflow_call:
+    inputs:
+      trigger:
+        required: true
+        type: string
+  workflow_dispatch:
 
 jobs:
   build:
@@ -31,14 +31,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y git cmake ninja-build gperf ccache \
             dfu-util device-tree-compiler python3-dev python3-pip python3-setuptools \
-            python3-tk python3-wheel xz-utils file libpython3-dev libffi-dev
+            python3-tk python3-wheel xz-utils file libpython3-dev libffi-dev gh
           pip3 install west
 
       # Initialize and set up Zephyr
       - name: Set up Zephyr
         run: |
-          west init zephyrproject -m https://github.com/zephyrproject-rtos/zephyr --mr v4.0.0
-          cd zephyrproject
+          west init -m https://github.com/nrfconnect/sdk-nrf --mr v3.0.2 ncs
+          cd ncs
           west update
           west zephyr-export
           pip3 install -r zephyr/scripts/requirements.txt
@@ -51,41 +51,21 @@ jobs:
           tar -xvf zephyr-sdk-0.17.0_linux-x86_64.tar.xz -C ~/zephyr-sdk
           cd ~/zephyr-sdk/zephyr-sdk-0.17.0
           ./setup.sh -t all -h
-
-      # Build MicroPython for Xiao nRF54L15
-      - name: Build for Xiao nRF54L15
-        run: |
-          source zephyrproject/zephyr/zephyr-env.sh
-          west build --build-dir $GITHUB_WORKSPACE/build_nrf54l15 ./lib/micropython/ports/zephyr --pristine --board xiao_nrf54l15/nrf54l15/cpuapp --sysbuild -- -DBOARD_ROOT=$GITHUB_WORKSPACE -DEXTRA_DTC_OVERLAY_FILE=$GITHUB_WORKSPACE/boards/xiao_nrf54l15_nrf54l15_cpuapp.overlay
-        env:
-          ZEPHYR_SDK_INSTALL_DIR: ~/zephyr-sdk/zephyr-sdk-0.17.0
-
-      # Upload Xiao nRF54L15 firmware artifacts
-      - name: Upload Xiao nRF54L15 artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: xiao-nrf54l15-firmware
-          path: |
-            build_nrf54l15/zephyr/zephyr/zephyr.elf
-            build_nrf54l15/zephyr/zephyr/zephyr.hex
-
-      # Upload Xiao nRF54L15 artifacts to Release (only on release event)
-      - name: Upload Xiao nRF54L15 artifacts to Release
-        if: github.event_name == 'release'
-        run: |
-          mv build_nrf54l15/zephyr/zephyr/zephyr.hex build_nrf54l15/zephyr/zephyr/xiao_nrf54l15.hex
-          gh release upload ${{ github.event.release.tag_name }} \
-            build_nrf54l15/zephyr/zephyr/xiao_nrf54l15.hex \
-            --clobber
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+          
       # Build MicroPython for Xiao nRF52840
       - name: Build for Xiao nRF52840
         run: |
-          source zephyrproject/zephyr/zephyr-env.sh
-          west build --build-dir $GITHUB_WORKSPACE/build_nrf52840 ./lib/micropython/ports/zephyr --pristine --board xiao_ble
+          source ncs/zephyr/zephyr-env.sh
+          pushd lib/micropython/ports/zephyr
+          git fetch origin
+          git reset --hard origin/master
+          gh pr checkout 18030
+          popd
+          
+          sed -i '10s/#include <version.h>/#include <zephyr\/version.h>/' ncs/nrf/lib/boot_banner/banner.c
+          west build --build-dir ./build_nrf52840 ./lib/micropython/ports/zephyr --pristine --board xiao_ble
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ZEPHYR_SDK_INSTALL_DIR: ~/zephyr-sdk/zephyr-sdk-0.17.0
 
       # Upload Xiao nRF52840 firmware artifacts
@@ -94,8 +74,8 @@ jobs:
         with:
           name: xiao-nrf52840-firmware
           path: |
-            build_nrf52840/zephyr/zephyr.elf
-            build_nrf52840/zephyr/zephyr.uf2
+            build_nrf52840/zephyr/zephyr/zephyr.elf
+            build_nrf52840/zephyr/zephyr/zephyr.uf2
 
       # Upload Xiao nRF52840 artifacts to Release (only on release event)
       - name: Upload Xiao nRF52840 artifacts to Release
