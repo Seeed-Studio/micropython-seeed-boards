@@ -26,9 +26,8 @@ Before building the MicroPython firmware, ensure you have the following:
       git clone --recurse-submodules https://github.com/Seeed-Studio/micropython-seeed-boards.git
       cd micropython-seeed-boards/lib/micropython
       gh pr checkout 18030
-      ```
 
-4. **Dependencies**:
+3. **Dependencies**:
     - Install required tools: Python 3.10 or later, CMake 3.20.0 or later, and the Zephyr SDK toolchain.
     - Verify the installation by building a sample Zephyr application to confirm your setup.
 

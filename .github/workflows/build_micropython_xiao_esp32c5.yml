@@ -46,6 +46,14 @@ jobs:
           make BOARD=ESP32_GENERIC_C5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          cd lib/micropython
+          gh pr checkout 17912
+          make -C mpy-cross
+          cd ports/esp32
+          rm -rf build-ESP32_GENERIC
+          make BOARD=SEEED_XIAO_ESP32C5
+        env:
+          GH_TOKEN: ${{ github.token }
 
       - name: Upload firmware
         uses: actions/upload-artifact@v4
@@ -60,6 +68,7 @@ jobs:
           mv lib/micropython/ports/esp32/build-ESP32_GENERIC_C5/firmware.bin lib/micropython/ports/esp32/build-ESP32_GENERIC_C5/xiao_esp32c5.bin
           gh release upload ${{ github.event.release.tag_name }} \
             lib/micropython/ports/esp32/build-ESP32_GENERIC_C5/xiao_esp32c5.bin \
+
             --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
