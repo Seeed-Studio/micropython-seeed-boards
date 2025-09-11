@@ -81,9 +81,9 @@ jobs:
       - name: Upload Xiao nRF52840 artifacts to Release
         if: github.event_name == 'release'
         run: |
-          mv build_nrf52840/zephyr/zephyr.uf2 build_nrf52840/zephyr/xiao_nrf52840.uf2
+          mv build_nrf52840/zephyr/zephyr/zephyr.uf2 build_nrf52840/zephyr/zephyr/xiao_nrf52840.uf2
           gh release upload ${{ github.event.release.tag_name }} \
-            build_nrf52840/zephyr/xiao_nrf52840.uf2 \
+            build_nrf52840/zephyr/zephyr/xiao_nrf52840.uf2 \
             --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
