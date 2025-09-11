@@ -1,0 +1,35 @@
+name: Build All MicroPython Firmwares
+
+on:
+  workflow_dispatch:
+  schedule:
+  - cron: '0 0 * * 1'
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+    types: [closed]
+  release:
+    types: [ created ]
+
+jobs:
+  build_esp32c5:
+    name: Build Xiao ESP32C5 Firmware
+    uses: ./.github/workflows/build_micropython_xiao_esp32c5.yml
+    with:
+      trigger: ${{ github.event_name }}
+    secrets: inherit
+
+  build_nrf54l15:
+    name: Build Xiao nRF54L15 Firmware
+    uses: ./.github/workflows/build_micropython_xiao_nrf54l15.yml
+    with:
+      trigger: ${{ github.event_name }}
+    secrets: inherit
+
+  build_nrf52840:
+    name: Build Xiao nRF52840 Firmware
+    uses: ./.github/workflows/build_micropython_xiao_nrf52840.yml
+    with:
+      trigger: ${{ github.event_name }}
+    secrets: inherit

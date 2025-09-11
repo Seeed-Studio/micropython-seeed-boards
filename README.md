@@ -24,9 +24,10 @@ Before building the MicroPython firmware, ensure you have the following:
     - Clone the MicroPython repository to your local machine:
       ```bash
       git clone --recurse-submodules https://github.com/Seeed-Studio/micropython-seeed-boards.git
-      ```
+      cd micropython-seeed-boards/lib/micropython
+      gh pr checkout 18030
 
-4. **Dependencies**:
+3. **Dependencies**:
     - Install required tools: Python 3.10 or later, CMake 3.20.0 or later, and the Zephyr SDK toolchain.
     - Verify the installation by building a sample Zephyr application to confirm your setup.
 
@@ -37,8 +38,7 @@ To build the MicroPython firmware for the Seeed Xiao nRF54L15 or Xiao nRF52840, 
 ### For Xiao nRF54L15
 ```bash
 export PROJECT_DIR=$(pwd)
-west build ./lib/micropython/ports/zephyr --pristine --board xiao_nrf54l15/nrf54l15/cpuapp --sysbuild -- \
- -DBOARD_ROOT=$PROJECT_DIR/ -DEXTRA_DTC_OVERLAY_FILE=$PROJECT_DIR/boards/xiao_nrf54l15_nrf54l15_cpuapp.overlay
+west build ./lib/micropython/ports/zephyr --pristine --board xiao_nrf54l15/nrf54l15/cpuapp --sysbuild --   -DBOARD_ROOT=$PROJECT_DIR/-DEXTRA_DTC_OVERLAY_FILE=$PROJECT_DIR/boards/xiao_nrf54l15_nrf54l15_cpuapp.overlay  -DEXTRA_CONF_FILE=$PROJECT_DIR/boards/xiao_nrf54l15_nrf54l15_cpuapp.conf   -DPM_STATIC_YML_FILE=$PROJECT_DIR/boards/pm_static_xiao_nrf54l15_nrf54l15_cpuapp.yml
 ```
 
 ### For Xiao nRF52840
@@ -121,6 +121,44 @@ while True:
 ```
 
 To enter paste mode in the REPL, press `Ctrl+E`, paste your code, and press `Ctrl+D` to execute.
+
+## Recommended Thonny IDE for MicroPython
+
+Install and open thonny, then configure Thonny following the instruction:
+
+```bash
+pip install thonny
+#open thonny after installation
+thonny
+```
+
+Go to Run-->Configure Interpreter, select "MicroPython (generic)" and port, then clicking OK, select the port in the lower right corner, usually showing as MicroPython(generic) · Virtual COM-Port @COMX.
+
+Then go to File->Open, select MicroPython device, copy the example/boards folder to the file system, and click OK. You can then open the example program in the example directory through Thonny and press `F5` to run it:
+
+```python
+import time
+from boards.xiao import XiaoPin
+
+led = "led"
+
+try:
+    # Initialize LED
+    led = XiaoPin(led, XiaoPin.OUT)
+    while True:
+        # LED 0.5 seconds on, 0.5 seconds off
+        led.value(1)
+        time.sleep(0.5)
+        led.value(0)
+        time.sleep(0.5)
+except KeyboardInterrupt:
+    print("\nProgram interrupted by user")
+except Exception as e:
+    print("\nError occurred: %s" % {e})
+finally:
+    led.value(1)
+```
+
 
 ## Features
 The MicroPython Zephyr port supports:

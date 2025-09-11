@@ -1,12 +1,12 @@
-name: Build MicroPython Firmware for Seeed Xiao Esp32c5
+name: Build MicroPython Firmware for Seeed Xiao ESP32C5
 
 on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
-  release:
-    types: [ created ]
+  workflow_call:
+    inputs:
+      trigger:
+        required: true
+        type: string
+  workflow_dispatch:
 
 jobs:
   build:
@@ -34,28 +34,33 @@ jobs:
       - name: Build ESP32-C5 firmware
         run: |
           . ~/esp-idf/export.sh
-          cd lib/micropython
+          cd lib
+          rm -rf micropython
+          git clone https://github.com/micropython/micropython.git
+          cd micropython
           gh pr checkout 17912
-          make -C mpy-cross
+          git submodule update --init --recursive
+          git submodule update --init lib/berkeley-db-1.xx
           cd ports/esp32
           rm -rf build-ESP32_GENERIC
-          make BOARD=SEEED_XIAO_ESP32C5
+          make BOARD=ESP32_GENERIC_C5
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
-          name: esp32c5-firmware
-          path: lib/micropython/ports/esp32/build-SEEED_XIAO_ESP32C5/firmware.bin
+          name: xiao-esp32c5-firmware
+          path: lib/micropython/ports/esp32/build-ESP32_GENERIC_C5/firmware.bin
 
       # Upload Xiao nRF52840 artifacts to Release (only on release event)
       - name: Upload Xiao esp32c5 artifacts to Release
         if: github.event_name == 'release'
         run: |
-          mv lib/micropython/ports/esp32/build-SEEED_XIAO_ESP32C5/firmware.bin lib/micropython/ports/esp32/build-SEEED_XIAO_ESP32C5/micropython_xiao_esp32c5.bin
+          mv lib/micropython/ports/esp32/build-ESP32_GENERIC_C5/firmware.bin lib/micropython/ports/esp32/build-ESP32_GENERIC_C5/xiao_esp32c5.bin
           gh release upload ${{ github.event.release.tag_name }} \
-            lib/micropython/ports/esp32/build-SEEED_XIAO_ESP32C5/micropython_xiao_esp32c5.bin \
+            lib/micropython/ports/esp32/build-ESP32_GENERIC_C5/xiao_esp32c5.bin \
+
             --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
