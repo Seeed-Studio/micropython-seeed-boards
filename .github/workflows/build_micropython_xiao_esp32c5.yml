@@ -60,7 +60,6 @@ jobs:
           mv lib/micropython/ports/esp32/build-ESP32_GENERIC_C5/firmware.bin lib/micropython/ports/esp32/build-ESP32_GENERIC_C5/xiao_esp32c5.bin
           gh release upload ${{ github.event.release.tag_name }} \
             lib/micropython/ports/esp32/build-ESP32_GENERIC_C5/xiao_esp32c5.bin \
-
             --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
