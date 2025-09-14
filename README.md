@@ -11,13 +11,24 @@ Before building the MicroPython firmware, ensure you have the following:
     - Ensure you have Zephyr version 4.0 or later installed, as the Xiao nRF54L15 requires a recent version due to its nRF54L15 SoC.
     - Example command to initialize Zephyr v4.0.0:
       ```bash
-      west init zephyrproject -m https://github.com/zephyrproject-rtos/zephyr --mr v4.0.0
-      cd zephyrproject/zephyr
+      west init -m https://github.com/nrfconnect/sdk-nrf --mr v3.0.2 ncs
+      cd ncs
       west update
+      west zephyr-export
+      pip3 install -r zephyr/scripts/requirements.txt
+      cd ..
+      ```
+    - Install Zephyr SDK:
+      ```bash
+      wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.0/zephyr-sdk-0.17.0_linux-x86_64.tar.xz
+      mkdir -p ~/zephyr-sdk
+      tar -xvf zephyr-sdk-0.17.0_linux-x86_64.tar.xz -C ~/zephyr-sdk
+      cd ~/zephyr-sdk/zephyr-sdk-0.17.0
+      ./setup.sh -t all -h
       ```
     - Source the Zephyr environment:
       ```bash
-      source zephyrproject/zephyr/zephyr-env.sh
+      source ncs/zephyr/zephyr-env.sh
       ```
 
 2. **MicroPython Repository**:
@@ -26,6 +37,7 @@ Before building the MicroPython firmware, ensure you have the following:
       git clone --recurse-submodules https://github.com/Seeed-Studio/micropython-seeed-boards.git
       cd micropython-seeed-boards/lib/micropython
       gh pr checkout 18030
+      ```
 
 3. **Dependencies**:
     - Install required tools: Python 3.10 or later, CMake 3.20.0 or later, and the Zephyr SDK toolchain.
@@ -38,7 +50,7 @@ To build the MicroPython firmware for the Seeed Xiao nRF54L15 or Xiao nRF52840, 
 ### For Xiao nRF54L15
 ```bash
 export PROJECT_DIR=$(pwd)
-west build ./lib/micropython/ports/zephyr --pristine --board xiao_nrf54l15/nrf54l15/cpuapp --sysbuild --   -DBOARD_ROOT=$PROJECT_DIR/-DEXTRA_DTC_OVERLAY_FILE=$PROJECT_DIR/boards/xiao_nrf54l15_nrf54l15_cpuapp.overlay  -DEXTRA_CONF_FILE=$PROJECT_DIR/boards/xiao_nrf54l15_nrf54l15_cpuapp.conf   -DPM_STATIC_YML_FILE=$PROJECT_DIR/boards/pm_static_xiao_nrf54l15_nrf54l15_cpuapp.yml
+west build ./lib/micropython/ports/zephyr --pristine --board xiao_nrf54l15/nrf54l15/cpuapp --sysbuild -- -DBOARD_ROOT=$PROJECT_DIR/ -DEXTRA_DTC_OVERLAY_FILE=$PROJECT_DIR/boards/xiao_nrf54l15_nrf54l15_cpuapp.overlay -DPM_STATIC_YML_FILE=$PROJECT_DIR/boards/pm_static_xiao_nrf54l15_nrf54l15_cpuapp.yml -DEXTRA_CONF_FILE=$PROJECT_DIR/boards/xiao_nrf54l15_nrf54l15_cpuapp.conf
 ```
 
 ### For Xiao nRF52840
@@ -76,7 +88,6 @@ west build ./lib/micropython/ports/zephyr --pristine --board xiao_ble -- -DCONF_
 esptool.py --chip esp32c5 --port /dev/cu.usbmodem11301 --baud 460800 write_flash -z 0x2000 micropython_xiao_esp32c5.bin
 ```
 
-
 ### Notes
 - If you encounter issues with undefined Kconfig symbols (e.g., `NET_SOCKETS_POSIX_NAMES`), check the `lib/micropython/ports/zephyr/prj.conf` file and comment out or remove unsupported configurations.
 - Ensure the Zephyr version matches the requirements of the MicroPython port (v4.0 is recommended).
@@ -89,46 +100,19 @@ To flash the compiled firmware to the Xiao nRF54L15 board:
 west flash
 ```
 
-### Debugging
+## Debugging
 To flash the firmware and start a GDB debug session:
 
 ```bash
 west debug
 ```
 
-## Running MicroPython
-
-Once flashed, connect to the board's UART console (e.g., using a terminal emulator like `minicom` or `screen`) to access the MicroPython REPL. The default baud rate is typically 115200.
-
-Example to connect using `minicom`:
-```bash
-minicom -D /dev/ttyUSB0 -b 115200
-```
-
-In the REPL, you can run Python code interactively. For example, to blink an LED:
-
-```python
-import time
-from machine import Pin
-
-# Adjust the GPIO pin according to the Xiao nRF54L15 board's pinout
-LED = Pin(("gpio2", 0), Pin.OUT)
-while True:
-    LED.value(1)
-    time.sleep(0.5)
-    LED.value(0)
-    time.sleep(0.5)
-```
-
-To enter paste mode in the REPL, press `Ctrl+E`, paste your code, and press `Ctrl+D` to execute.
-
-## Recommended Thonny IDE for MicroPython
+## Running MicroPython by Thonny IDE
 
 Install and open thonny, then configure Thonny following the instruction:
 
 ```bash
 pip install thonny
-#open thonny after installation
 thonny
 ```
 
@@ -158,7 +142,6 @@ except Exception as e:
 finally:
     led.value(1)
 ```
-
 
 ## Features
 The MicroPython Zephyr port supports:
