@@ -70,6 +70,7 @@ try:
     # Start advertising (interval=100ms)
     ble.gap_advertise(None)
     ble.gap_advertise(100000, adv_payload)
+    print("Start advertising")
     while True:
         pass
 except KeyboardInterrupt:
@@ -78,6 +79,7 @@ except Exception as e:
     print("\nError occurred: %s" % {e})
 finally:
     ble.active(False)
+
 
 
 
