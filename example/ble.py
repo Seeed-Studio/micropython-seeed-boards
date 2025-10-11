@@ -79,9 +79,3 @@ except Exception as e:
     print("\nError occurred: %s" % {e})
 finally:
     ble.active(False)
-
-
-
-
-
-
