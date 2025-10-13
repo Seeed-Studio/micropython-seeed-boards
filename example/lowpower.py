@@ -1,10 +1,10 @@
 import time
 import sys
 
-if sys.platform != 'zephyr':
-    raise Exception("This code can only run on Zephyr of Xiao series.")
-else:
+if "nrf54l15" in sys.implementation._machine:
     from boards.xiao import XiaoLowPWR
+else:
+    raise Exception("This code can only run on XIAO nRF54L15.")
 
 # Create an instance of the LowPWR class
 lowpwr = XiaoLowPWR()  

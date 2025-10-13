@@ -1,11 +1,11 @@
 import time
 import sys
 
-if sys.platform != 'zephyr':
-    raise Exception("This code can only run on Zephyr of Xiao series.")
-else:
+if "nrf54l15" in sys.implementation._machine:
     from boards.xiao import XiaoPDM
-    pdm_ch = "pdm0"   
+    pdm_ch = "pdm0"  
+else:
+    raise Exception("This code can only run on XIAO nRF54L15.")
 
 # Single channel capture
 print("PCM output rate: 16000, channels: 1")

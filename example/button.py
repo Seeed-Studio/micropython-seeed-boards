@@ -5,8 +5,8 @@ led = "led"
 
 try:
     # Initialize the button and LED
-    button = XiaoPin("sw", XiaoPin.IN)
-    led = XiaoPin("led", XiaoPin.OUT)
+    button = XiaoPin(button, XiaoPin.IN)
+    led = XiaoPin(led, XiaoPin.OUT)
     while True:
         # Check if the button is pressed and turn on the LED if it is
         if button.value() == 0:

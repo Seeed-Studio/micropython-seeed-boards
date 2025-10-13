@@ -1,13 +1,13 @@
 import time
 import sys
 
-if sys.platform != 'zephyr':
-    raise Exception("This code can only run on Zephyr of Xiao series.")
-else:
+if "nrf54l15" in sys.implementation._machine:
     import ubinascii
     from boards.xiao import XiaoPin, XiaoI2C
     i2c = "i2c1"
     en = "imu_en"
+else:
+    raise Exception("This code can only run on XIAO nRF54L15.")
 
 # --- LSM6DSO I2C address and register definitions ---
 LSM6DSO_I2C_ADDR = 0x6A         # LSM6DSO I2C device address

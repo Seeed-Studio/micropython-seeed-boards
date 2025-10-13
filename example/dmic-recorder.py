@@ -1,15 +1,15 @@
 import time
 import sys
 
-if sys.platform != 'zephyr':
-    raise Exception("This code can only run on Zephyr of Xiao series.")
-else:
+if "nrf54l15" in sys.implementation._machine:
     import ubinascii
     from boards.xiao import XiaoPin, XiaoPDM
     led = "led"  
     button = "sw"  
     en = "mic_en"
     pdm = "pdm0"
+else:
+    raise Exception("This code can only run on XIAO nRF54L15.")
 
 def record_audio():
     # Configure PDM

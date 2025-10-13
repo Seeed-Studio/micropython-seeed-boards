@@ -10,6 +10,10 @@ if "nrf54l15" in implementation._machine:
 elif "ESP32C5" in implementation._machine:
     from machine import ADC, RTC
     from boards.xiao_esp32c5 import xiao_esp32c5 as xiao
+elif "mg24" in implementation._machine:
+    from ADC import ADC
+    from RTC import RTC
+    from boards.xiao_mg24 import xiao_mg24 as xiao
 
 class XiaoPin(Pin):
     def __init__(self, pin_num, mode=-1, pull=None):
@@ -95,7 +99,7 @@ class XiaoRTC(RTC):
             except:
                 raise ValueError("Invalid rtc")
 
-if platform == "zephyr":
+if "nrf54l15" in implementation._machine:
     class XiaoPDM(PDM):
         def __init__(self, pdm_num):
             try:

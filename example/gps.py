@@ -157,7 +157,7 @@ def print_gps_data(gps):
 try:
     uart = XiaoUART(uart, baudrate, tx, rx)
     # Initialize UART
-    uart.init(9600, bits=8, parity=None, stop=1)
+    uart.init(baudrate, bits=8, parity=None, stop=1)
     # Buffer to accumulate complete messages
     buffer = bytearray()
     # Constants for coordinate transformation

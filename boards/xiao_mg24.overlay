@@ -1,0 +1,272 @@
+#include <dt-bindings/adc/silabs-adc.h>
+
+/ {
+    zephyr,user {
+        io-channels = <&adc0 0>, <&adc0 1>, <&adc0 2>, <&adc0 3>, <&adc0 4>, <&adc0 5>, <&adc0 6>, <&adc0 7>, <&adc0 8>, <&adc0 9>, <&adc0 10>, <&adc0 11>;
+    };
+};
+
+/ {
+	chosen {
+		zephyr,rtc = &pfc8563_rtc;
+	};
+    
+	aliases {
+		rtc = &pfc8563_rtc;
+	};
+};
+
+/ {
+	fstab {
+		compatible = "zephyr,fstab";
+		lfs1: lfs1 {
+			compatible = "zephyr,fstab,littlefs";
+			mount-point = "/flash";
+			partition = <&storage_partition>;
+			automount;
+			read-size = <32>;
+			prog-size = <32>;
+			cache-size = <256>;
+			lookahead-size = <32>;
+			block-cycles = <1024>;
+		};
+	};
+};
+
+&pinctrl {
+	eusart0_default: eusart0_default {
+		group0 {
+			pins = <EUSART0_TX_PA5>, <EUSART0_SCLK_PA3>;
+			drive-push-pull;
+			output-high;
+		};
+
+		group1 {
+			pins = <EUSART0_RX_PA4>;
+			input-enable;
+			silabs,input-filter;
+		};
+	};
+
+	eusart1_default: eusart1_default {
+		group0 {
+			pins = <EUSART1_TX_PC6>;
+			drive-push-pull;
+			output-high;
+		};
+
+		group1 {
+			pins = <EUSART1_RX_PC7>;
+			input-enable;
+			silabs,input-filter;
+		};
+	};
+
+	i2c0_default: i2c0_default {
+		group0 {
+			pins = <I2C0_SCL_PC5>, <I2C0_SDA_PC4>;
+			drive-open-drain;
+			bias-pull-up;
+		};
+	};
+
+	timer0_default: timer0_default {
+		group0 {
+			pins = <TIMER0_CC0_PC0>;
+			drive-push-pull;
+			output-high;
+		};
+		group1 {
+			pins = <TIMER0_CC1_PC1>;
+			drive-push-pull;
+			output-high;
+		};
+		group2 {
+			pins = <TIMER0_CC2_PC2>;
+			drive-push-pull;
+			output-high;
+		};
+	};
+
+	adc0_default: adc0_default {
+		group0 {
+			silabs,analog-bus = <ABUS_CDEVEN0_IADC0>, <ABUS_CDODD1_IADC0>, <ABUS_AEVEN0_IADC0>, <ABUS_AODD1_IADC0>;
+		};
+	};
+};
+
+&i2c0 {
+	status = "okay";
+
+	pfc8563_rtc: pfc8563@51 {
+		compatible = "nxp,pcf8563";
+		reg = <0x51>;
+		status = "okay";
+	};
+};
+
+&eusart0 {
+	status = "okay";
+	compatible = "silabs,eusart-spi";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <4000000>;
+	cs-gpios = <&gpioc 1 GPIO_ACTIVE_LOW>;
+	pinctrl-0 = <&eusart0_default>;
+	pinctrl-names = "default";
+	
+	/delete-property/ current-speed;
+};
+
+&eusart1 {
+	status = "okay";
+	compatible = "silabs,eusart-uart";
+	current-speed = <115200>;
+	pinctrl-0 = <&eusart1_default>;
+	pinctrl-names = "default";
+
+	/delete-property/ #address-cells;
+	/delete-property/ #size-cells;
+	/delete-property/ clock-frequency;
+	/delete-property/ cs-gpios;
+};
+
+&adc0 {
+	pinctrl-0 = <&adc0_default>;
+	pinctrl-names = "default";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	channel@0 {
+		reg = <0>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_VDD_1";
+		zephyr,vref-mv = <3300>;
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+		zephyr,input-positive = <IADC_INPUT_PC0>;
+	};
+
+	channel@1 {
+		reg = <1>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_VDD_1";
+		zephyr,vref-mv = <3300>;
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+		zephyr,input-positive = <IADC_INPUT_PC1>;
+	};
+
+	channel@2 {
+		reg = <2>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_VDD_1";
+		zephyr,vref-mv = <3300>;
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+		zephyr,input-positive = <IADC_INPUT_PC2>;
+	};
+
+	channel@3 {
+		reg = <3>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_VDD_1";
+		zephyr,vref-mv = <3300>;
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+		zephyr,input-positive = <IADC_INPUT_PC3>;
+	};
+
+	channel@4 {
+		reg = <4>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_VDD_1";
+		zephyr,vref-mv = <3300>;
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+		zephyr,input-positive = <IADC_INPUT_PC4>;
+	};
+
+	channel@5 {
+		reg = <5>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_VDD_1";
+		zephyr,vref-mv = <3300>;
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+		zephyr,input-positive = <IADC_INPUT_PC5>;
+	};
+
+	channel@6 {
+		reg = <6>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_VDD_1";
+		zephyr,vref-mv = <3300>;
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+		zephyr,input-positive = <IADC_INPUT_PC6>;
+	};
+
+	channel@7 {	
+		reg = <7>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_VDD_1";
+		zephyr,vref-mv = <3300>;
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+		zephyr,input-positive = <IADC_INPUT_PC7>;
+	};
+
+	channel@8 {	
+		reg = <8>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_VDD_1";
+		zephyr,vref-mv = <3300>;
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+		zephyr,input-positive = <IADC_INPUT_PA3>;
+	};
+
+	channel@9 {	
+		reg = <9>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_VDD_1";
+		zephyr,vref-mv = <3300>;
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+		zephyr,input-positive = <IADC_INPUT_PA4>;
+	};
+
+	channel@10 {	
+		reg = <10>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_VDD_1";
+		zephyr,vref-mv = <3300>;
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+		zephyr,input-positive = <IADC_INPUT_PA5>;
+	};
+
+	channel@11 {	
+		reg = <11>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_VDD_1";
+		zephyr,vref-mv = <3300>;
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+		zephyr,input-positive = <IADC_INPUT_PD4>;
+	};
+};
+
+/* Reserve 608 kB for the application in slot 1 */
+&slot1_partition {
+	reg = <0x000C4000 0x00098000>;
+	label = "image-1";
+};
+
+/* Set 128 kB of storage at the end of the 1536 kB of flash */
+&storage_partition {
+	reg = <0x0015c000 DT_SIZE_K(128)>;
+	label = "storage";
+};
