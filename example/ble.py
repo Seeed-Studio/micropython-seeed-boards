@@ -76,6 +76,6 @@ try:
 except KeyboardInterrupt:
     print("\nProgram interrupted by user")
 except Exception as e:
-    print("\nError occurred: %s" % {e})
+    print("\nError occurred: %s" % e)
 finally:
     ble.active(False)
