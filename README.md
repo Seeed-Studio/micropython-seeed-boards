@@ -22,11 +22,11 @@ Before building the MicroPython firmware, ensure you have the following:
     - Ensure you have Zephyr version 4.0 or later installed, as the Xiao nRF54L15 requires a recent version due to its nRF54L15 SoC.
     - Example command to initialize Zephyr v4.0.0 for nrf:
       ```bash
-      # e.g. for XIAO-nRF54L15 and XIAO-nRF52840
+      # e.g. for XIAO nRF54L15 and XIAO nRF52840
       west init -m https://github.com/nrfconnect/sdk-nrf --mr v3.0.2 zephyrproject 
       west update && west zephyr-export
 
-      # e.g. for XIAO-MG24
+      # e.g. for XIAO MG24
       west init zephyrproject -m https://github.com/zephyrproject-rtos/zephyr --mr v4.2.0
       cd zephyrproject/zephyr && west update && west blobs fetch hal_silabs
 
