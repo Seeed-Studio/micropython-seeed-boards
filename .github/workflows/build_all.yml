@@ -33,3 +33,10 @@ jobs:
     with:
       trigger: ${{ github.event_name }}
     secrets: inherit
+
+  build_mg24:
+    name: Build Xiao MG24 Firmware
+    uses: ./.github/workflows/build_micropython_xiao_mg24.yml
+    with:
+      trigger: ${{ github.event_name }}
+    secrets: inherit

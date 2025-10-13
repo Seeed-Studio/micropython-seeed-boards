@@ -1,0 +1,93 @@
+name: Build MicroPython Firmware for Seeed Xiao MG24
+
+on:
+  workflow_call:
+    inputs:
+      trigger:
+        required: true
+        type: string
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Set up Python (required for Zephyr and west)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Install Zephyr dependencies
+      - name: Install Zephyr dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git cmake ninja-build gperf ccache \
+            dfu-util device-tree-compiler python3-dev python3-pip python3-setuptools \
+            python3-tk python3-wheel xz-utils file libpython3-dev libffi-dev gh
+          pip3 install west
+          pip install requests
+          pip install pyelftools
+
+      # Initialize and set up Zephyr
+      - name: Set up Zephyr
+        run: |
+          west init zephyrproject -m https://github.com/zephyrproject-rtos/zephyr --mr v4.2.0
+          cd zephyrproject/zephyr
+          west update
+          west blobs fetch hal_silabs
+
+      # Install Zephyr SDK
+      - name: Install Zephyr SDK
+        run: |
+          wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.0/zephyr-sdk-0.17.0_linux-x86_64.tar.xz
+          mkdir -p ~/zephyr-sdk
+          tar -xvf zephyr-sdk-0.17.0_linux-x86_64.tar.xz -C ~/zephyr-sdk
+          cd ~/zephyr-sdk/zephyr-sdk-0.17.0
+          ./setup.sh -t all -h
+
+      # Build MicroPython for Xiao MG24
+      - name: Build for Xiao MG24
+        run: |
+          source zephyrproject/zephyr/zephyr-env.sh
+          pushd lib/micropython/ports/zephyr
+          git fetch origin
+          git reset --hard origin/master
+          gh pr checkout 18030
+          sed -i '116s/4096)/4096 * 2)/' ./main.c
+          popd
+
+          export ZEPHYR_SDK_INSTALL_DIR="~/zephyr-sdk/zephyr-sdk-0.17.0"
+          export PATH="$ZEPHYR_SDK_INSTALL_DIR:$PATH"
+          export PROJECT_DIR=$(pwd)
+          west build lib/micropython/ports/zephyr -b xiao_mg24 --pristine -- -DCONF_FILE=$PROJECT_DIR/boards/xiao_mg24.conf -DEXTRA_DTC_OVERLAY_FILE=$PROJECT_DIR/boards/xiao_mg24.overlay -DUSER_C_MODULES="$PROJECT_DIR/src/cmodules/modadc;$PROJECT_DIR/src/cmodules/modrtc;"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ZEPHYR_SDK_INSTALL_DIR: ~/zephyr-sdk/zephyr-sdk-0.17.0
+
+      # Upload Xiao MG24 firmware artifacts
+      - name: Upload Xiao MG24 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiao-mg24-firmware
+          path: |
+            build/zephyr/zephyr.elf
+            build/zephyr/zephyr.hex
+
+      # Upload Xiao MG24 artifacts to Release (only on release event)
+      - name: Upload Xiao MG24 artifacts to Release
+        if: github.event_name == 'release'
+        run: |
+          mv build/zephyr/zephyr.hex build/zephyr/xiao_mg24.hex
+          gh release upload ${{ github.event.release.tag_name }} \
+            build/zephyr/xiao_mg24.hex \
+            --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
