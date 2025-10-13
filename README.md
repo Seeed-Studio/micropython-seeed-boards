@@ -15,14 +15,21 @@ Before building the MicroPython firmware, ensure you have the following:
       dfu-util device-tree-compiler python3-dev python3-pip python3-setuptools \
       python3-tk python3-wheel xz-utils file libpython3-dev libffi-dev gh
       pip3 install west
+      pip install requests
+      pip install pyelftools
       ```
     - Install the Zephyr SDK and set up the development environment by following the [Zephyr Getting Started Guide](https://docs.zephyrproject.org/latest/getting_started/index.html).
     - Ensure you have Zephyr version 4.0 or later installed, as the Xiao nRF54L15 requires a recent version due to its nRF54L15 SoC.
     - Example command to initialize Zephyr v4.0.0 for nrf:
       ```bash
-      west init -m https://github.com/nrfconnect/sdk-nrf --mr v3.0.2 ncs && cd ncs
-      west update
-      west zephyr-export
+      # e.g. for XIAO-nRF54L15 and XIAO-nRF52840
+      west init -m https://github.com/nrfconnect/sdk-nrf --mr v3.0.2 zephyrproject 
+      west update && west zephyr-export
+
+      # e.g. for XIAO-MG24
+      west init zephyrproject -m https://github.com/zephyrproject-rtos/zephyr --mr v4.2.0
+      cd zephyrproject/zephyr && west update && west blobs fetch hal_silabs
+
       pip3 install -r zephyr/scripts/requirements.txt && cd ..
       ```
     - Install Zephyr SDK:
@@ -80,25 +87,24 @@ To build the MicroPython firmware for the Zephyr boards or ESP32 boards, run the
 
 1. **Building for Zephyr Boards**:
     - Currently, MicroPython does not support the configuration for Xiao nRF54L15, so the compilation method is somewhat different.
-    - For Xiao nRF54L15:
+    - For XIAO nRF54L15:
       ```bash
       cd micropython-seeed-boards && export PROJECT_DIR=$(pwd)
       west build ./lib/micropython/ports/zephyr --pristine --board xiao_nrf54l15/nrf54l15/cpuapp --sysbuild -- -DBOARD_ROOT=$PROJECT_DIR/ -DEXTRA_DTC_OVERLAY_FILE=$PROJECT_DIR/boards/xiao_nrf54l15_nrf54l15_cpuapp.overlay -DPM_STATIC_YML_FILE=$PROJECT_DIR/boards/pm_static_xiao_nrf54l15_nrf54l15_cpuapp.yml -DEXTRA_CONF_FILE=$PROJECT_DIR/boards/xiao_nrf54l15_nrf54l15_cpuapp.conf
       ```
-    - You can replace the other boards with xiao_ble.
-    - Example for Xiao nRF52840 and Other Zephyr Boards:
+    - For XIAO nRF52840:
       ```bash
       west build ./lib/micropython/ports/zephyr --pristine --board xiao_ble
       ```
+    - For XIAO MG24:
+      ```bash
+      cd micropython-seeed-boards && export ZEPHYR_SDK_INSTALL_DIR="~/zephyr-sdk/zephyr-sdk-0.17.0"
+      export PATH="$ZEPHYR_SDK_INSTALL_DIR:$PATH"
+      export PROJECT_DIR=$(pwd)
+      west build lib/micropython/ports/zephyr -b xiao_mg24 --pristine -- -DCONF_FILE=$PROJECT_DIR/boards/xiao_mg24.conf -DEXTRA_DTC_OVERLAY_FILE=$PROJECT_DIR/boards/xiao_mg24.overlay -DUSER_C_MODULES="$PROJECT_DIR/src/cmodules/modadc;$PROJECT_DIR/src/cmodules/modrtc;"
+      ```
     - If you encounter issues with undefined Kconfig symbols (e.g., `NET_SOCKETS_POSIX_NAMES`), check the `lib/micropython/ports/zephyr/prj.conf` file and comment out or remove unsupported configurations.
     - Ensure the Zephyr version matches the requirements of the MicroPython port (v4.0 is recommended).
-    - Minimal Build:
-      ```bash
-      export PROJECT_DIR=$(pwd)
-      west build ./lib/micropython/ports/zephyr --pristine --board xiao_nrf54l15/nrf54l15/cpuapp --sysbuild -- \
-      -DBOARD_ROOT=$PROJECT_DIR/ -DEXTRA_DTC_OVERLAY_FILE=$PROJECT_DIR/boards/xiao_nrf54l15_nrf54l15_cpuapp.overlay -DCONF_FILE=./lib/micropython/ports/zephyr/prj_minimal.conf
-      west build ./lib/micropython/ports/zephyr --pristine --board xiao_ble -- -DCONF_FILE=./lib/micropython/ports/zephyr/prj_minimal.conf
-      ```
 2. **Building for ESP32 Boards**:
     - You can replace the other boards with ESP32_GENERIC_C5.
     - Example For Xiao esp32c5 and Other ESP32 Boards:
@@ -116,16 +122,24 @@ To build the MicroPython firmware for the Zephyr boards or ESP32 boards, run the
 
 ## Flashing the Firmware
 
-To flash the compiled firmware to the Zeyphr boards and ESP32 boards, run the following command from the root of your project directory:
+The compiled firmware is available at https://github.com/Seeed-Studio/micropython-seeed-boards/releases. To flash the compiled firmware to the Zeyphr boards and ESP32 boards, run the following command from the root of your project directory:
 
 1. **Flashing for Zephyr Boards**:
-    - To flash the compiled firmware to the Zeyphr boards:
+    - You first need to put the compiled firmware into the flash tool folder of XIAO nRF54L15 or XIAO MG24, and then run the following command:
       ```bash
-      west flash
-      ```
-    - To flash the firmware and start a GDB debug session:
-      ```bash
-      west debug
+      # e.g. for XIAO nRF54L15
+      cd micropython-seeed-boards/tools/xiao_nrf54l15_flash
+      # e.g. for Windows
+      ./xiao_nrf54l15_flash.bat
+      # e.g. for Linux and Mac
+      chmod +x xiao_nrf54l15_flash.sh && ./xiao_nrf54l15_flash.sh
+      
+      # e.g. for XIAO MG24
+      cd micropython-seeed-boards/tools/xiao_mg24_flash
+      # e.g. for Windows
+      ./xiao_mg24_flash.bat
+      # e.g. for Linux and Mac
+      chmod +x xiao_mg24_flash.sh && ./xiao_mg24_flash.sh
       ```
 2. **Flashing for ESP32 Boards**:
     - For the MicroPython firmware of the Seeed XIAO ESP32C5, a CI (Continuous Integration) automatic compilation workflow has been added. You only need to download the corresponding firmware from the release and use the appropriate flashing method.
