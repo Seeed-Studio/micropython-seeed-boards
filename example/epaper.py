@@ -1,6 +1,9 @@
 import time
 from boards.xiao import XiaoPin, XiaoSPI
 
+# Tested with 7.5" Monochrome eInk ePaper Display
+# with 800x480 Pixels, SPI interface
+
 RST = 0                     # D0
 CS = 1                      # D1
 DC = 3                      # D3
@@ -224,10 +227,3 @@ img_data = bytearray(
     0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]
 )
 display_partial_image(0, 0, 90, 90, img_data)
-
-
-
-
-
-
-
