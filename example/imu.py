@@ -17,7 +17,7 @@ elif "mg24" in sys.implementation._machine:
     from machine import SoftI2C, Pin
     i2c = SoftI2C(Pin(xiao.pin(scl)), Pin(xiao.pin(sda)))
 else:
-    raise Exception("This code can only run on XIAO nRF54L15 Sence and XIAO MG24 Sence.")
+    raise Exception("This code can only run on XIAO nRF54L15 Sense and XIAO MG24 Sense.")
 
 # --- LSM6DSO I2C address and register definitions ---
 LSM6DSO_I2C_ADDR = 0x6A         # LSM6DSO I2C device address
@@ -111,5 +111,6 @@ finally:
     i2c.stop()
     
     
+
 
 
