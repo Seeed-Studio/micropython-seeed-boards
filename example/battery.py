@@ -1,5 +1,5 @@
 import time  
-from boards.xiao import XiaoPin, XiaoADC
+from boards.xiao import XiaoPin, XiaoADC  #If you are using XIAO RA4M1, you must delete this line
 
 adc = "vbat"
 en = "vbat_en"        

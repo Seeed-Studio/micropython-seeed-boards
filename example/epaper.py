@@ -1,8 +1,7 @@
 import time
-from boards.xiao import XiaoPin, XiaoSPI
+from boards.xiao import XiaoPin, XiaoSPI  #If you are using XIAO RA4M1, you must delete this line
 
-# Tested with 7.5" and 5.83 Monochrome eInk ePaper Display
-# with 800x480 Pixels, SPI interface
+# Tested with 7.5" and 5.83" Monochrome eInk ePaper Display
 
 RST = 0                     # D0
 CS = 1                      # D1
@@ -118,12 +117,6 @@ def display_partial_image(x, y, width, height, image_data):
     wait_until_idle()
     send_command(0x92)  
 
-# Initialize and test the display
-init_display()
-# Refresh according to your screen model, for example, 5.83 inches is 600x448
-# 0xFF is black and 0x00 is white
-# fill_rect(0, 0, 648, 480, 0xFF) 
-
 # Example image data (100x100 pixels)
 img_data = bytearray(
     [0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xF0,0xFF,0xFF,0xFF,
@@ -210,5 +203,18 @@ img_data = bytearray(
     0xFF,0xFF,0xFF,0xF0,]
 )
 
-# Do not exceed your screen size
-display_partial_image(0, 0, 100, 100, img_data)
+try:
+    # Initialize and test the display
+    init_display()
+    # Refresh according to your screen model, for example, 5.83 inches is 600x448
+    # 0xFF is black and 0x00 is white
+    # fill_rect(0, 0, 648, 480, 0xFF)
+    # Do not exceed your screen size
+    display_partial_image(0, 0, 100, 100, img_data)
+    print("ePaper initialized successfully")
+    while True:
+        time.sleep(1)
+except KeyboardInterrupt:
+    print("\nProgram interrupted by user")
+except Exception as e:
+    print("\nError occurred: %s" % {e})

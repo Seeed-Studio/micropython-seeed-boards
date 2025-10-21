@@ -1,5 +1,5 @@
 import time
-from boards.xiao import XiaoPin, XiaoADC, XiaoPWM
+from boards.xiao import XiaoPin, XiaoADC, XiaoPWM  #If you are using XIAO RA4M1, you must delete this line
 
 adc = 0    #D0
 pwm = 1    #D1

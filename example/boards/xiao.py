@@ -1,19 +1,24 @@
 from sys import implementation, platform
-from machine import Pin, PWM, I2C, SPI, UART
+from machine import Pin, PWM, SPI, UART
 
 if "nrf54l15" in implementation._machine:
     from ADC import ADC
     from PDM import PDM
     from LowPWR import LowPWR
     from RTC import RTC
+    from machine import I2C
     from boards.xiao_nrf54l15 import xiao_nrf54l15 as xiao
 elif "ESP32C5" in implementation._machine:
-    from machine import ADC, RTC
+    from machine import ADC, RTC, I2C
     from boards.xiao_esp32c5 import xiao_esp32c5 as xiao
 elif "mg24" in implementation._machine:
     from ADC import ADC
     from RTC import RTC
+    from machine import I2C
     from boards.xiao_mg24 import xiao_mg24 as xiao
+elif "RA4M1" in implementation._machine:
+    from machine import ADC, RTC, SoftI2C, SoftSPI
+    from boards.xiao_ra4m1 import xiao_ra4m1 as xiao
 
 class XiaoPin(Pin):
     def __init__(self, pin_num, mode=-1, pull=None):
@@ -36,34 +41,49 @@ class XiaoPWM(PWM):
         except:
             raise ValueError("Invalid pwm")
 
-class XiaoI2C(I2C):
-    if platform == "esp32":
+if "RA4M1" in implementation._machine:
+    class XiaoI2C(SoftI2C):
         def __init__(self, i2c_num, sda_num, scl_num, freq_num=400000):
             try:
-                super().__init__(xiao.i2c(i2c_num), sda=xiao.pin(sda_num), scl=xiao.pin(scl_num), freq=freq_num)
+                super().__init__(scl=xiao.pin(scl_num), sda=xiao.pin(sda_num))
             except:
                 raise ValueError("Invalid i2c")
-    else:
-        def __init__(self, i2c_num, sda_num, scl_num, freq=400000):
-            try:
-                super().__init__(xiao.i2c(i2c_num))
-            except:
-                raise ValueError("Invalid i2c")
-
-class XiaoSPI(SPI):
-    if platform == "esp32":
+            
+    class XiaoSPI(SoftSPI):
         def __init__(self, spi_num, baudrate_num, sck_num, mosi_num, miso_num):
             try:
-                super().__init__(xiao.spi(spi_num), baudrate=baudrate_num, sck=xiao.pin(sck_num), mosi=xiao.pin(mosi_num), miso=xiao.pin(miso_num))
+                super().__init__(baudrate=baudrate_num, polarity=0, phase=0, bits=8, firstbit=SoftSPI.MSB, sck=xiao.pin(miso_num), mosi=xiao.pin(mosi_num), miso=xiao.pin(sck_num))
             except:
                 raise ValueError("Invalid spi")
-    else:
-        def __init__(self, spi_num, baudrate_num, sck_num, mosi_num, miso_num):
-            try:
-                super().__init__(xiao.spi(spi_num), baudrate=baudrate_num, polarity=0, phase=0, bits=8, firstbit=SPI.MSB)
-            except:
-                raise ValueError("Invalid spi")
-
+else:
+    class XiaoI2C(I2C):
+        if platform == "esp32":
+            def __init__(self, i2c_num, sda_num, scl_num, freq_num=400000):
+                try:
+                    super().__init__(xiao.i2c(i2c_num), sda=xiao.pin(sda_num), scl=xiao.pin(scl_num), freq=freq_num)
+                except:
+                    raise ValueError("Invalid i2c")
+        else:
+            def __init__(self, i2c_num, sda_num, scl_num, freq=400000):
+                try:
+                    super().__init__(xiao.i2c(i2c_num))
+                except:
+                    raise ValueError("Invalid i2c")
+                
+    class XiaoSPI(SPI):
+        if platform == "esp32":
+            def __init__(self, spi_num, baudrate_num, sck_num, mosi_num, miso_num):
+                try:
+                    super().__init__(xiao.spi(spi_num), baudrate=baudrate_num, sck=xiao.pin(sck_num), mosi=xiao.pin(mosi_num), miso=xiao.pin(miso_num))
+                except:
+                    raise ValueError("Invalid spi")
+        else:
+            def __init__(self, spi_num, baudrate_num, sck_num, mosi_num, miso_num):
+                try:
+                    super().__init__(xiao.spi(spi_num), baudrate=baudrate_num, polarity=0, phase=0, bits=8, firstbit=SPI.MSB)
+                except:
+                    raise ValueError("Invalid spi")
+                
 class XiaoUART(UART):
     if platform == "esp32":
         def __init__(self, uart_num, baudrate_num, tx_num, rx_num):
@@ -80,7 +100,7 @@ class XiaoUART(UART):
 
 
 class XiaoRTC(RTC):
-    if platform == "esp32":
+    if platform == "esp32" or platform == "renesas-ra":
         def __init__(self):
             try:
                 self._rtc = RTC()
@@ -113,7 +133,3 @@ if "nrf54l15" in implementation._machine:
                 super().__init__()
             except:
                 raise ValueError("Invalid lowpwr")
-
-
-        
-        

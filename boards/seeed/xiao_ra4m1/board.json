@@ -1,0 +1,15 @@
+{
+    "deploy": [
+        "../deploy.md"
+    ],
+    "docs": "",
+    "features": [],
+    "images": [
+        "SEEED_XIAO_RA4M1.jpg"
+    ],
+    "mcu": "ra4m1",
+    "product": "seeed-xiao_ra4m1",
+    "thumbnail": "",
+    "url": "https://wiki.seeedstudio.com/cn/getting_started_xiao_ra4m1",
+    "vendor": "Seeed Studio"
+}

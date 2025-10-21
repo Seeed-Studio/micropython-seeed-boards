@@ -1,5 +1,5 @@
 import time
-from boards.xiao import XiaoPWM
+from boards.xiao import XiaoPWM  #If you are using XIAO RA4M1, you must delete this line
 
 led = 1   #D1
 

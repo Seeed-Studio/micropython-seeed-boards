@@ -1,5 +1,5 @@
 import time 
-from boards.xiao import XiaoRTC
+from boards.xiao import XiaoRTC  #If you are using XIAO RA4M1, you must delete this line
 
 rtc = XiaoRTC()
 

@@ -1,5 +1,5 @@
 import bluetooth
-from boards.xiao import XiaoPin
+from boards.xiao import XiaoPin  #If you are using XIAO RA4M1, you must delete this line
 
 led = "led"
 device_name = "xiao"
