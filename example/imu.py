@@ -109,8 +109,3 @@ except Exception as e:
     print("\nError occurred: %s" % {e})
 finally:
     i2c.stop()
-    
-    
-
-
-
