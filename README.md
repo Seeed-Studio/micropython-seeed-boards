@@ -1,6 +1,6 @@
 # MicroPython for Seeed board
 
-This README provides instructions for building and running MicroPython firmware on the Seeed XIAO board using the Zephyr boards and ESP32 boards. The port is based on MicroPython's Zephyr port and ESP32 port, which supports various Zephyr-compatible boards and ESP32-based boards.
+This README file provides instructions for building and running MicroPython firmware on select Seeed XIAO development boards.
 
 ## Install Development Environment 
 
@@ -80,6 +80,18 @@ Before building the MicroPython firmware, ensure you have the following:
       git submodule update --init --recursive
       git submodule update --init lib/berkeley-db-1.xx
       ```
+3. **Renesas RA Developement Environment**:
+    - Install dependences:
+      ```bash
+      sudo apt-get update
+      sudo apt-get install -y git make cmake ninja-build gperf ccache gcc-arm-none-eabi dfu-util device-tree-compiler python3-dev python3-pip python3-setuptools python3-tk python3-wheel xz-utils file libpython3-dev libffi-dev gh
+      ```
+    - Clone the MicroPython repository to your local machine:
+      ```bash
+      cd lib && rm -r micropython || true
+      git clone https://github.com/micropython/micropython.git
+      cd micropython && git submodule update --init --recursive && gh pr checkout 16409
+      ```
 
 ## Building the Firmware
 
@@ -107,18 +119,18 @@ To build the MicroPython firmware for the Zephyr boards or ESP32 boards, run the
     - Ensure the Zephyr version matches the requirements of the MicroPython port (v4.0 is recommended).
 2. **Building for ESP32 Boards**:
     - You can replace the other boards with ESP32_GENERIC_C5.
-    - Example For Xiao esp32c5 and Other ESP32 Boards:
+    - Example For XIAO ESP32C5 and Other ESP32 Boards:
       ```bash
       cd micropython-seeed-boards/lib/micropython/ports/esp32
       rm -rf build-ESP32_GENERIC
       make BOARD=ESP32_GENERIC_C5
       ```
-3. **Command Breakdown**:
-    - `./lib/micropython/ports/zephyr`: Specifies the MicroPython Zephyr port directory as the application source.
-    - `--pristine`: Ensures a clean build by removing any previous build artifacts.
-    - `--board xiao_nrf54l15/nrf54l15/cpuapp`: Specifies the target board and CPU (nRF54L15 application core).
-    - `--sysbuild`: Enables Zephyr's sysbuild system for multi-image builds.
-    - `-DBOARD_ROOT=./`: Sets the board root directory to the current project directory, where the Xiao nRF54L15 board files are located.
+3. **Building for Renesas RA Boards**:
+    - Example For XIAO RA4M1 CORE and Other RA Boards:
+      ```bash
+      cd micropython-seeed-boards/lib/micropython/ports/renesas-ra
+      make BOARD_DIR=../../../../boards/seeed/xiao_ra4m1
+      ```
 
 ## Flashing the Firmware
 
@@ -150,6 +162,15 @@ The compiled firmware is available at https://github.com/Seeed-Studio/micropytho
       esptool.py --chip esp32c5 --port /dev/cu.usbmodem11301 --baud 460800 write_flash -z 0x2000 xiao_esp32c5.bin
       # e.g. for Windows
       esptool --chip esp32c5 --port COM7 --baud 460800 write_flash -z 0x2000 .\xiao_esp32c5.bin
+      ```
+3. **Flashing for Renesas RA Boards**:
+    - You first need to put the compiled firmware into the flash tool folder of XIAO RA4M1, and then run the following command, the prerequisite is that you must use XIAO Debugger to connect to the XIAO RA4M1 board:
+      ```bash
+      cd micropython-seeed-boards/tools/xiao_ra4m1_flash
+      # e.g. for Windows
+      ./xiao_ra4m1_flash.bat
+      # e.g. for Linux and Mac
+      chmod +x xiao_ra4m1_flash.sh && ./xiao_ra4m1_flash.sh
       ```
 
 ## Running MicroPython by Thonny IDE

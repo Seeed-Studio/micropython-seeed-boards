@@ -1,0 +1,65 @@
+name: Build MicroPython Firmware for Seeed Xiao MG24
+
+on:
+  workflow_call:
+    inputs:
+      trigger:
+        required: true
+        type: string
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Install RA4M1 dependencies
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi
+          sudo apt-get install -y git make cmake ninja-build gperf ccache \
+            dfu-util device-tree-compiler python3-dev python3-pip python3-setuptools \
+            python3-tk python3-wheel xz-utils file libpython3-dev libffi-dev gh
+
+      # Build MicroPython for Xiao RA4M1
+      - name: Build for Xiao RA4M1
+        run: |
+          cd lib && rm -r micropython || true
+          git clone https://github.com/micropython/micropython.git
+          cd micropython && git submodule update --init --recursive && gh pr checkout 16409
+          cd ports/renesas-ra && sed -i '122s/const char \*boot_py = "boot.py";/const char *boot_py = "boards\/xiao.py";/' boardctrl.c
+          make BOARD_DIR=../../../../boards/seeed/xiao_ra4m1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Upload Xiao RA4M1 firmware artifacts
+      - name: Upload Xiao RA4M1 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiao-ra4m1-firmware
+          path: |
+            lib/micropython/ports/renesas-ra/build-xiao_ra4m1/firmware.hex
+
+      # Upload Xiao RA4M1 artifacts to Release (only on release event)
+      - name: Upload Xiao RA4M1 artifacts to Release
+        if: github.event_name == 'release'
+        run: |
+          mv lib/micropython/ports/renesas-ra/build-xiao_ra4m1/firmware.hex lib/micropython/ports/renesas-ra/build-xiao_ra4m1/xiao_ra4m1.hex
+          gh release upload ${{ github.event.release.tag_name }} \
+            lib/micropython/ports/renesas-ra/build-xiao_ra4m1/xiao_ra4m1.hex \
+            --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
