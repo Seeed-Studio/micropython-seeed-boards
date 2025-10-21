@@ -5,7 +5,7 @@ if "nrf54l15" in sys.implementation._machine:
     from boards.xiao import XiaoPDM
     pdm_ch = "pdm0"  
 else:
-    raise Exception("This code can only run on XIAO nRF54L15.")
+    raise Exception("This code can only run on XIAO nRF54L15 Sence.")
 
 # Single channel capture
 print("PCM output rate: 16000, channels: 1")

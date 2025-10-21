@@ -1,13 +1,23 @@
 import time
 import sys
+import ubinascii
+
+sda = "imu_sda"        
+scl = "imu_scl"        
+i2c = "i2c1"
+en = "imu_en"
+frq = 400000
 
 if "nrf54l15" in sys.implementation._machine:
-    import ubinascii
     from boards.xiao import XiaoPin, XiaoI2C
-    i2c = "i2c1"
-    en = "imu_en"
+    i2c = XiaoI2C(i2c, sda, scl, frq)
+elif "mg24" in sys.implementation._machine: 
+    from boards.xiao import XiaoPin
+    from boards.xiao_mg24 import xiao_mg24 as xiao
+    from machine import SoftI2C, Pin
+    i2c = SoftI2C(Pin(xiao.pin(scl)), Pin(xiao.pin(sda)))
 else:
-    raise Exception("This code can only run on XIAO nRF54L15.")
+    raise Exception("This code can only run on XIAO nRF54L15 Sence and XIAO MG24 Sence.")
 
 # --- LSM6DSO I2C address and register definitions ---
 LSM6DSO_I2C_ADDR = 0x6A         # LSM6DSO I2C device address
@@ -47,7 +57,6 @@ try:
     en = XiaoPin(en, XiaoPin.OUT)  
     en.value(1) 
     # Initialize I2C bus and check if LSM6DSO is present
-    i2c = XiaoI2C(i2c)
     i2c_addr = i2c.scan()
     if LSM6DSO_I2C_ADDR not in i2c_addr:
         raise Exception("LSM6DSO not found on I2C bus")

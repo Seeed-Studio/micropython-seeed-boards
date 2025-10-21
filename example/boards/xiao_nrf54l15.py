@@ -17,6 +17,8 @@ class xiao_nrf54l15:
             "en": ("gpio0", 1),
             "vbat_en": ("gpio1", 15),
             "imu_en": ("gpio0", 1),
+            "imu_scl": ("gpio0", 3),
+            "imu_sda": ("gpio0", 4),
             "mic_en": ("gpio0", 1),
         }
         return xiao_pin[pin]

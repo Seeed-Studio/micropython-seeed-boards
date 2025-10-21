@@ -15,6 +15,9 @@ class xiao_mg24:
             "led": ("gpioa", 7),
             "sw": ("gpioc", 1),
             "vbat_en": ("gpiod", 3),
+            "imu_en": ("gpiod", 5),
+            "imu_scl": ("gpiob", 3),
+            "imu_sda": ("gpiob", 2),
         }
         return xiao_pin[pin]
     

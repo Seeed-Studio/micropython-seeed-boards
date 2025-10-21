@@ -9,7 +9,7 @@ if "nrf54l15" in sys.implementation._machine:
     en = "mic_en"
     pdm = "pdm0"
 else:
-    raise Exception("This code can only run on XIAO nRF54L15.")
+    raise Exception("This code can only run on XIAO nRF54L15 Sence.")
 
 def record_audio():
     # Configure PDM
