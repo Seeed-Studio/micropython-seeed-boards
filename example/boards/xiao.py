@@ -33,9 +33,6 @@ class XiaoADC(ADC):
             super().__init__(xiao.adc(adc_num))
         except:
             raise ValueError("Invalid adc")
-    if "RA4M1" in implementation._machine:
-        def read_uv(self):
-            return self.read_u16() * 100
 
 class XiaoPWM(PWM):
     def __init__(self, pwm_num):
