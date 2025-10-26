@@ -1,4 +1,4 @@
-from boards.xiao import XiaoPin  #If you are using XIAO RA4M1, you must delete this line
+from boards.xiao import XiaoPin 
 
 button = "sw"
 led = "led"

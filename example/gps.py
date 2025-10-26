@@ -1,4 +1,5 @@
 import time
+from boards.xiao import XiaoUART
 
 uart = "uart1"
 baudrate = 9600

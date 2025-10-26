@@ -1,5 +1,5 @@
 import time
-from boards.xiao import XiaoPin, XiaoADC, XiaoPWM  #If you are using XIAO RA4M1, you must delete this line
+from boards.xiao import XiaoPin, XiaoADC, XiaoPWM 
 
 adc = 0    #D0
 pwm = 1    #D1
@@ -11,7 +11,7 @@ try:
     pwm = XiaoPWM(pwm)     
     FREQ = 1000                     
     PERIOD_NS = 1000000             
-    pwm.init(freq=FREQ, duty_ns=0)  
+    pwm.init(freq=FREQ)  
     # Potentiometer parameters
     MIN_VOLTAGE = 0.0      
     MAX_VOLTAGE = 3.3     
@@ -36,7 +36,11 @@ try:
         
         # Calculate duty cycle time (nanoseconds)
         duty_ns = int(duty_percent * PERIOD_NS)
-        
+        if duty_ns < 20:
+            duty_ns = 20
+        elif duty_ns > 960000:
+            duty_ns = 960000
+            
         # Set PWM duty cycle
         pwm.duty_ns(duty_ns)
         

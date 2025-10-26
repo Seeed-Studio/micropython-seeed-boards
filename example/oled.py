@@ -1,5 +1,5 @@
 import time
-from boards.xiao import XiaoI2C  #If you are using XIAO RA4M1, you must delete this line
+from boards.xiao import XiaoI2C  
 
 sda = 4        #D4
 scl = 5        #D5

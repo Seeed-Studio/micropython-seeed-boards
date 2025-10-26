@@ -1,5 +1,5 @@
 import time
-from boards.xiao import XiaoPin, XiaoSPI  #If you are using XIAO RA4M1, you must delete this line
+from boards.xiao import XiaoPin, XiaoSPI  
 
 # Tested with 7.5" and 5.83" Monochrome eInk ePaper Display
 

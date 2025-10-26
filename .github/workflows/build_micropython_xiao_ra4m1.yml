@@ -40,7 +40,9 @@ jobs:
           cd lib && rm -r micropython || true
           git clone https://github.com/micropython/micropython.git
           cd micropython && git submodule update --init --recursive && gh pr checkout 16409
-          cd ports/renesas-ra && sed -i '122s/const char \*boot_py = "boot.py";/const char *boot_py = "boards\/xiao.py";/' boardctrl.c
+          cd ports/renesas-ra 
+          sed -i '301,302c\    mp_cstack_init_with_top(&_estack, (char *)&_estack - (char *)&_sstack);' main.c
+          sed -i '170s/#define MICROPY_FATFS_ENABLE_LFN.*/#define MICROPY_FATFS_ENABLE_LFN       (1)/' mpconfigport.h
           make BOARD_DIR=../../../../boards/seeed/xiao_ra4m1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
