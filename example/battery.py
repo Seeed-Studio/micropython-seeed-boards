@@ -12,7 +12,7 @@ try:
     adc = XiaoADC(adc)  
     while True:
         # Read the battery voltage in microvolts and convert to volts
-        vbat = adc.read_uv() / 1000000  
+        vbat = adc.read_u16() / 10000  
         print("Battery Voltage: {:.4f} V".format(vbat)) 
         time.sleep(0.1)
 except KeyboardInterrupt:

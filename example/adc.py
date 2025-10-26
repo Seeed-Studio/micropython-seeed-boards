@@ -19,7 +19,7 @@ try:
     last_duty = -1 
     while True:
         # Read ADC voltage value
-        voltage = adc.read_uv() / 1000000  
+        voltage = adc.read_u16() / 10000  
         
         # Ensure voltage is within valid range
         if voltage < MIN_VOLTAGE:
