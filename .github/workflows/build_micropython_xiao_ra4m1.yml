@@ -13,6 +13,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Clean disk space before build
+      - name: Clean disk space before build
+        run: |
+          sudo apt clean
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/hostedtoolcache || true
+          docker system prune -f || true
+          npm cache clean --force || true
+      
       # Checkout the repository
       - name: Checkout repository
         uses: actions/checkout@v4
