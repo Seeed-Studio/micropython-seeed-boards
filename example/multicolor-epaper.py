@@ -97,16 +97,17 @@ def draw_char(buffer, x, y, char, color):
         byte_data = font_data[row]
         for col in range(8):
             if byte_data & (0x80 >> col):
-                set_pixel_in_buffer(buffer, x + (7 - col), y + (7 - row), color)  # Flip horizontally only
+                set_pixel_in_buffer(buffer, x + (7 - col), (GATE_BITS - 1) - (y + row), color)
     
     return x + 8  # Return next x position
 
 # Draw text string at position (x, y) with the given color
 def draw_text(buffer, x, y, text, color):
-    current_x = x
+    current_y = y 
     for char in text:
-        current_x = draw_char(buffer, current_x, y, char, color)
-    return current_x
+        draw_char(buffer, x, current_y, char, color)
+        current_y += 8 
+    return current_y
 
 # Initialize the display (based on Arduino EPD_init)
 def init_display():
@@ -227,12 +228,10 @@ try:
     print("Creating frame buffer...")
     buffer = create_frame_buffer()
     
-    print("Drawing 'Hello World' in different colors...")
-    # Display "Hello World" in different colors from top to bottom
-    draw_text(buffer, 10, 80, "Hello World", BLACK)    # Black
-    draw_text(buffer, 10, 120, "Hello World", YELLOW)  # Yellow
-    draw_text(buffer, 10, 160, "Hello World", RED)     # Red
-    draw_text(buffer, 10, 200, "Hello World", BLACK)   # Black again
+    print("Drawing Hello World (Corrected)...")
+    draw_text(buffer, 10, 10, "Hello World", BLACK)    
+    draw_text(buffer, 30, 10, "Hello World", YELLOW)   
+    draw_text(buffer, 50, 10, "Hello World", RED)      
     
     print("Displaying image...")
     display_buffer(buffer)

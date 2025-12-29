@@ -72,17 +72,17 @@
 
 	timer0_default: timer0_default {
 		group0 {
-			pins = <TIMER0_CC0_PC0>;
+			pins = <TIMER0_CC0_PC2>;
 			drive-push-pull;
 			output-high;
 		};
 		group1 {
-			pins = <TIMER0_CC1_PC1>;
+			pins = <TIMER0_CC1_PC4>;
 			drive-push-pull;
 			output-high;
 		};
 		group2 {
-			pins = <TIMER0_CC2_PC2>;
+			pins = <TIMER0_CC2_PC5>;
 			drive-push-pull;
 			output-high;
 		};
@@ -110,8 +110,6 @@
 	compatible = "silabs,eusart-spi";
 	#address-cells = <1>;
 	#size-cells = <0>;
-	clock-frequency = <4000000>;
-	cs-gpios = <&gpioc 1 GPIO_ACTIVE_LOW>;
 	pinctrl-0 = <&eusart0_default>;
 	pinctrl-names = "default";
 	

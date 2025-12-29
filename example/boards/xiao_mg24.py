@@ -40,9 +40,9 @@ class xiao_mg24:
     
     def pwm(pwm):
         xiao_pwm = {
-            0: ("pwm", 0),
-            1: ("pwm", 1),
-            2: ("pwm", 2),
+            2: ("pwm", 0),
+            4: ("pwm", 1),
+            5: ("pwm", 2),
         }
         return xiao_pwm[pwm]
     
