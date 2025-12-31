@@ -10,7 +10,7 @@
 		compatible = "gpio-leds";
 
 		led0: led_0 {
-			gpios = <&gpio2 0 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio2 0 GPIO_ACTIVE_LOW>;
 			label = "LED 0";
 		};
 	};
@@ -79,6 +79,7 @@
 	pinctrl-names = "default";
 	clock-source = "PCLK32M";
 };
+
 
 &adc {
 	#address-cells = <1>;

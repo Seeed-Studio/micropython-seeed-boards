@@ -22,12 +22,12 @@ Hardware
 - 128 MHz Arm® Cortex®-M33 processor
 - Scalable memory configurations up to 1.5 MB NVM and up to 256 KB RAM
 - Multiprotocol 2.4 GHz radio supporting Bluetooth Low Energy, 802.15.4-2020,
-    and 2.4 GHz proprietary modes (up to 4 Mbps)
+  and 2.4 GHz proprietary modes (up to 4 Mbps)
 - Comprehensive set of peripherals including new Global RTC available in System OFF,
-    14-bit ADC, and high-speed serial interfaces
+  14-bit ADC, and high-speed serial interfaces
 - 128 MHz RISC-V coprocessor
 - Advanced security including TrustZone® isolation, tamper detection,
-    and cryptographic engine side-channel leakage protection
+  and cryptographic engine side-channel leakage protection
 
 
 For more information about the nRF54L15 SoC and XIAO nRF54L15 board, refer to these
@@ -62,12 +62,9 @@ means Pin number 0 on PORT2, as used in the board's datasheets and manuals.
 Programming and Debugging
 *************************
 
-The XIAO nRF54L15 contains an SAMD11 with CMSIS-DAP, allowing flashing, debugging, logging, etc. over
-the USB port. Doing so requires a version of OpenOCD that includes support for the flash on the nRF54L15
-MCU. Until those changes are included in stock OpenOCD, the version bundled with Arduino can be
-used, or can be installed from the `OpenOCD Arduino Fork`_. When flashing, debugging, etc. you may
-need to include ``--openocd=/usr/local/bin/openocd
---openocd-search=/usr/local/share/openocd/scripts/`` options to the command.
+.. zephyr:board-supported-runners::
+The XIAO nRF54L15 contains a SAMD11 with CMSIS-DAP, allowing flashing, debugging, logging, etc. over
+the USB port.
 
 Flashing
 ========
@@ -92,7 +89,7 @@ Reset the board and you should see the following message in the terminal:
 
 
 .. _XIAO nRF54L15 Wiki:
-   https://wiki.seeedstudio.com/getting_started_with_xiao_nrf54l15/
+   https://wiki.seeedstudio.com/xiao_nrf54l15_sense_getting_started
 
 .. _nRF54L15 Website:
    https://www.nordicsemi.com/Products/nRF54L15
