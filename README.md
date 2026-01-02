@@ -149,6 +149,9 @@ The compiled firmware is available at https://github.com/Seeed-Studio/micropytho
       # e.g. for XIAO MG24
       cd micropython-seeed-boards/tools/xiao_mg24_flash
       # e.g. for Windows
+      python -m venv venv
+      Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+      .\venv\Scripts\Activate.ps1
       ./xiao_mg24_flash.bat
       # e.g. for Linux and Mac
       chmod +x xiao_mg24_flash.sh && ./xiao_mg24_flash.sh
