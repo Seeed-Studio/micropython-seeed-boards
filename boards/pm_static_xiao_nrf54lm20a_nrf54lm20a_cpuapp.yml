@@ -1,0 +1,21 @@
+app:
+  address: 0x10000
+  end_address: 0x80400
+  region: flash_primary
+  size: 0x70400
+  placement:
+    before:
+    - image-0-nonsecure
+littlefs_storage:
+  address: 0x1d1000
+  end_address: 0x1e0000
+  placement:
+    before:
+    - end
+  region: flash_primary
+  size: 0x9000
+sram_primary:
+  address: 0x20000000
+  end_address: 0x2002f000
+  region: sram_primary
+  size: 0x2f000

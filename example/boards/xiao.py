@@ -8,6 +8,13 @@ if "nrf54l15" in implementation._machine:
     from RTC import RTC
     from machine import I2C
     from boards.xiao_nrf54l15 import xiao_nrf54l15 as xiao
+elif "nrf54lm20a" in implementation._machine:
+    from ADC import ADC
+    from PDM import PDM
+    from LowPWR import LowPWR
+    from RTC import RTC
+    from machine import I2C
+    from boards.xiao_nrf54lm20a import xiao_nrf54lm20a as xiao
 elif "mg24" in implementation._machine:
     from ADC import ADC
     from RTC import RTC
@@ -116,14 +123,14 @@ class XiaoRTC(RTC):
             except:
                 raise ValueError("Invalid rtc")
   
-if "nrf54l15" in implementation._machine:
+if "nrf54l15" in implementation._machine or "nrf54lm20a" in implementation._machine:
     class XiaoPDM(PDM):
         def __init__(self, pdm_num):
             try:
                 super().__init__(xiao.pdm(pdm_num))
             except:
                 raise ValueError("Invalid pdm")
-            
+
     class XiaoLowPWR(LowPWR):
         def __init__(self):
             try:
