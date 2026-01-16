@@ -63,7 +63,7 @@ Before building the MicroPython firmware, ensure you have the following:
       git clone -b v5.5 --recursive https://github.com/espressif/esp-idf.git
       cd ~/esp-idf
       git submodule update --init --recursive
-      ./install.sh esp32c5
+      ./install.sh esp32
       . ./export.sh
       ```
     - Source the ESP-IDF environment:
@@ -118,12 +118,11 @@ To build the MicroPython firmware for the Zephyr boards or ESP32 boards, run the
     - If you encounter issues with undefined Kconfig symbols (e.g., `NET_SOCKETS_POSIX_NAMES`), check the `lib/micropython/ports/zephyr/prj.conf` file and comment out or remove unsupported configurations.
     - Ensure the Zephyr version matches the requirements of the MicroPython port (v4.0 is recommended).
 2. **Building for ESP32 Boards**:
-    - You can replace the other boards with ESP32_GENERIC_C5.
-    - Example For XIAO ESP32C5 and Other ESP32 Boards:
+    - Example For ESP32 Boards:
       ```bash
       cd micropython-seeed-boards/lib/micropython/ports/esp32
       rm -rf build-ESP32_GENERIC
-      make BOARD=ESP32_GENERIC_C5
+      make BOARD=ESP32_GENERIC
       ```
 3. **Building for Renesas RA Boards**:
     - Example For XIAO RA4M1 CORE and Other RA Boards:
@@ -157,14 +156,13 @@ The compiled firmware is available at https://github.com/Seeed-Studio/micropytho
       chmod +x xiao_mg24_flash.sh && ./xiao_mg24_flash.sh
       ```
 2. **Flashing for ESP32 Boards**:
-    - For the MicroPython firmware of the Seeed XIAO ESP32C5, a CI (Continuous Integration) automatic compilation workflow has been added. You only need to download the corresponding firmware from the release and use the appropriate flashing method.
-    - Here, the esptool tool is recommended for flashing. It should be noted that when flashing the MicroPython firmware, **the starting address must be specified as 0x2000.**
-    - Example for Xiao esp32c5:
+    - The esptool tool is recommended for flashing. It should be noted that when flashing the MicroPython firmware, **the starting address must be specified as 0x2000.**
+    - Example for ESP32 boards:
       ```bash
       # e.g. for Linux
-      esptool.py --chip esp32c5 --port /dev/cu.usbmodem11301 --baud 460800 write_flash -z 0x2000 xiao_esp32c5.bin
+      esptool.py --chip esp32 --port /dev/cu.usbmodem11301 --baud 460800 write_flash -z 0x2000 firmware.bin
       # e.g. for Windows
-      esptool --chip esp32c5 --port COM7 --baud 460800 write_flash -z 0x2000 .\xiao_esp32c5.bin
+      esptool --chip esp32 --port COM7 --baud 460800 write_flash -z 0x2000 .\firmware.bin
       ```
 3. **Flashing for Renesas RA Boards**:
     - You first need to put the compiled firmware into the flash tool folder of XIAO RA4M1, and then run the following command, the prerequisite is that you must use XIAO Debugger to connect to the XIAO RA4M1 board:

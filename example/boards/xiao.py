@@ -8,9 +8,6 @@ if "nrf54l15" in implementation._machine:
     from RTC import RTC
     from machine import I2C
     from boards.xiao_nrf54l15 import xiao_nrf54l15 as xiao
-elif "ESP32C5" in implementation._machine:
-    from machine import ADC, RTC, I2C
-    from boards.xiao_esp32c5 import xiao_esp32c5 as xiao
 elif "mg24" in implementation._machine:
     from ADC import ADC
     from RTC import RTC
