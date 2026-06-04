@@ -1,0 +1,40 @@
+/*
+ * Copyright (c) 2026 Seeed Technology Co., Ltd.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+    zephyr,user {
+        io-channels = <&adc 0>, <&adc 1>, <&adc 2>, <&adc 3>, <&adc 4>, <&adc 5>, <&adc 6>, <&adc 7>;
+    };
+};
+
+/ {
+    fstab {
+        compatible = "zephyr,fstab";
+        lfs1: lfs1 {
+            compatible = "zephyr,fstab,littlefs";
+            mount-point = "/flash";
+            partition = <&storage_partition>;
+            automount;
+            read-size = <32>;
+            prog-size = <32>;
+            cache-size = <128>;
+            lookahead-size = <64>;
+            block-cycles = <2048>;
+        };
+    };
+};
+
+&pdm20 {
+    status = "okay";
+};
+
+&pwm20 {
+    status = "okay";
+};
+
+&wdt31 {
+    status = "okay";
+};
