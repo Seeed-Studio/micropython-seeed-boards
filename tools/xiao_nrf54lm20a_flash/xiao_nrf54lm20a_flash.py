@@ -8,7 +8,9 @@ Fallback path: pyOCD (optional, for debugging only).
 """
 
 import argparse
+import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -25,6 +27,8 @@ REPO_OPENOCD_CFG = os.path.join(
 )
 
 PYOCD_SPEC = "pyocd @ git+https://github.com/StarSphere-1024/pyOCD.git@lm20_stable"
+PIO_OPENOCD_SPEC = "tool-openocd@~3.1200.0"
+PIO_OPENOCD_VERSION = "3.1200.0"
 TARGET = "nrf54lm20a"
 FREQUENCY = "4000000"
 
@@ -52,16 +56,117 @@ def auto_select_hex() -> str:
     return candidate
 
 
-def find_openocd() -> str:
-    candidates = [
-        shutil.which("openocd"),
-        r"C:\Users\seeed\AppData\Local\xPacks\OpenOCD\xpack-openocd-0.12.0-7\bin\openocd.exe",
-        r"C:\ProgramData\chocolatey\bin\openocd.exe",
-    ]
-    for candidate in candidates:
-        if candidate and os.path.isfile(candidate):
-            return candidate
-    print("[ERROR] openocd executable not found.")
+def parse_version(version: str) -> tuple:
+    parts = []
+    for token in version.replace("-", ".").split("."):
+        try:
+            parts.append(int(token))
+        except ValueError:
+            parts.append(token)
+    return tuple(parts)
+
+
+def default_openocd_root() -> str:
+    system = platform.system().lower()
+    if system == "windows":
+        base = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+        return os.path.join(base, "Seeed", "OpenOCD")
+    if system == "darwin":
+        return os.path.expanduser("~/Library/Application Support/Seeed/OpenOCD")
+    return os.path.expanduser("~/.local/share/seeed/openocd")
+
+
+def ensure_dir(path: str) -> str:
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def prompt_openocd_root(user_value: str | None) -> str:
+    if user_value:
+        return ensure_dir(os.path.abspath(os.path.expanduser(user_value)))
+
+    default_root = ensure_dir(default_openocd_root())
+    package_dir = os.path.join(default_root, "tool-openocd")
+    if os.path.isdir(package_dir):
+        return default_root
+
+    print(f"[INFO] Verified OpenOCD install dir default: {default_root}")
+    if sys.stdin and sys.stdin.isatty():
+        entered = input("OpenOCD install dir (press Enter to use default): ").strip()
+        if entered:
+            return ensure_dir(os.path.abspath(os.path.expanduser(entered)))
+    return default_root
+
+
+def ensure_pio() -> str:
+    pio = shutil.which("pio")
+    if pio:
+        return pio
+    print("[INFO] PlatformIO not found. Installing platformio ...")
+    subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "platformio"], check=True)
+    pio = shutil.which("pio")
+    if not pio:
+        print("[ERROR] Failed to locate PlatformIO after installation.")
+        sys.exit(1)
+    return pio
+
+
+def install_verified_openocd(storage_dir: str) -> None:
+    pio = ensure_pio()
+    print(f"[INFO] Installing verified OpenOCD {PIO_OPENOCD_VERSION} into: {storage_dir}")
+    subprocess.run(
+        [pio, "pkg", "install", "-g", "-t", PIO_OPENOCD_SPEC, "--storage-dir", storage_dir, "--force"],
+        check=True,
+    )
+
+
+def find_managed_openocd_root(storage_dir: str) -> str | None:
+    candidates = []
+    for entry in os.scandir(storage_dir):
+        if not entry.is_dir():
+            continue
+        package_json = os.path.join(entry.path, "package.json")
+        if not os.path.isfile(package_json):
+            continue
+        try:
+            with open(package_json, "r", encoding="utf-8") as fp:
+                meta = json.load(fp)
+        except Exception:
+            continue
+        if meta.get("name") != "tool-openocd":
+            continue
+        candidates.append((parse_version(meta.get("version", "0")), entry.path, meta))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates[0][1]
+
+
+def ensure_verified_openocd(storage_dir: str) -> str:
+    managed = find_managed_openocd_root(storage_dir)
+    if managed:
+        package_json = os.path.join(managed, "package.json")
+        with open(package_json, "r", encoding="utf-8") as fp:
+            meta = json.load(fp)
+        if meta.get("version") == PIO_OPENOCD_VERSION:
+            return managed
+
+    install_verified_openocd(storage_dir)
+    managed = find_managed_openocd_root(storage_dir)
+    if not managed:
+        print("[ERROR] Verified OpenOCD installation completed but package was not found.")
+        sys.exit(1)
+    return managed
+
+
+def find_openocd(openocd_root: str) -> str:
+    managed_root = ensure_verified_openocd(openocd_root)
+    exe_name = "openocd.exe" if platform.system().lower() == "windows" else "openocd"
+    candidate = os.path.join(managed_root, "bin", exe_name)
+    if os.path.isfile(candidate):
+        return candidate
+    print("[ERROR] openocd executable not found in verified package:")
+    print(f"  - {candidate}")
     sys.exit(1)
 
 
@@ -97,8 +202,8 @@ def ensure_expected_pyocd() -> None:
     subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", PYOCD_SPEC, "libusb"], check=True)
 
 
-def flash_with_openocd(hex_path: str, probe_id: str | None) -> int:
-    openocd = find_openocd()
+def flash_with_openocd(hex_path: str, probe_id: str | None, openocd_root: str) -> int:
+    openocd = find_openocd(openocd_root)
     openocd_cfg = find_openocd_cfg()
     cmd = [openocd]
 
@@ -155,6 +260,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Flash Seeed XIAO nRF54LM20A firmware.")
     parser.add_argument("--hex", help="Path to the HEX file to be programmed.")
     parser.add_argument("--probe", help="Specify the unique ID of the debug probe to use.")
+    parser.add_argument("--openocd-dir", help="Directory used to install and manage the verified OpenOCD package.")
     parser.add_argument(
         "--backend",
         choices=["openocd", "pyocd"],
@@ -167,7 +273,8 @@ def main() -> None:
     print(f"[INFO] Using HEX file: {hex_path}")
 
     if args.backend == "openocd":
-        rc = flash_with_openocd(hex_path, args.probe)
+        openocd_root = prompt_openocd_root(args.openocd_dir)
+        rc = flash_with_openocd(hex_path, args.probe, openocd_root)
     else:
         rc = flash_with_pyocd(hex_path, args.probe)
     if rc == 0:
