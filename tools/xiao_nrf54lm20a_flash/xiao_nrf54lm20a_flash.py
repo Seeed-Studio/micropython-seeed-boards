@@ -11,9 +11,13 @@ import argparse
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
+import tarfile
+import urllib.request
+import zipfile
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LOCAL_OPENOCD_CFG = os.path.join(SCRIPT_DIR, "openocd.cfg")
@@ -27,8 +31,12 @@ REPO_OPENOCD_CFG = os.path.join(
 )
 
 PYOCD_SPEC = "pyocd @ git+https://github.com/StarSphere-1024/pyOCD.git@lm20_stable"
-PIO_OPENOCD_SPEC = "tool-openocd@~3.1200.0"
-PIO_OPENOCD_VERSION = "3.1200.0"
+OPENOCD_PACKAGE_VERSION = "0.12.0-7"
+OPENOCD_DOWNLOADS = {
+    "windows": "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-win.zip",
+    "linux": "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-linux.tar.gz",
+    "mac": "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-apple.tar.gz",
+}
 TARGET = "nrf54lm20a"
 FREQUENCY = "4000000"
 
@@ -58,7 +66,7 @@ def auto_select_hex() -> str:
 
 def parse_version(version: str) -> tuple:
     parts = []
-    for token in version.replace("-", ".").split("."):
+    for token in re.split(r"[._-]+", version):
         try:
             parts.append(int(token))
         except ValueError:
@@ -86,8 +94,7 @@ def prompt_openocd_root(user_value: str | None) -> str:
         return ensure_dir(os.path.abspath(os.path.expanduser(user_value)))
 
     default_root = ensure_dir(default_openocd_root())
-    package_dir = os.path.join(default_root, "tool-openocd")
-    if os.path.isdir(package_dir):
+    if any(entry.is_dir() for entry in os.scandir(default_root)):
         return default_root
 
     print(f"[INFO] Verified OpenOCD install dir default: {default_root}")
@@ -98,26 +105,50 @@ def prompt_openocd_root(user_value: str | None) -> str:
     return default_root
 
 
-def ensure_pio() -> str:
-    pio = shutil.which("pio")
-    if pio:
-        return pio
-    print("[INFO] PlatformIO not found. Installing platformio ...")
-    subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "platformio"], check=True)
-    pio = shutil.which("pio")
-    if not pio:
-        print("[ERROR] Failed to locate PlatformIO after installation.")
-        sys.exit(1)
-    return pio
+def current_platform_key() -> str:
+    system = platform.system().lower()
+    if system == "windows":
+        return "windows"
+    if system == "darwin":
+        return "mac"
+    return "linux"
 
 
 def install_verified_openocd(storage_dir: str) -> None:
-    pio = ensure_pio()
-    print(f"[INFO] Installing verified OpenOCD {PIO_OPENOCD_VERSION} into: {storage_dir}")
-    subprocess.run(
-        [pio, "pkg", "install", "-g", "-t", PIO_OPENOCD_SPEC, "--storage-dir", storage_dir, "--force"],
-        check=True,
-    )
+    platform_key = current_platform_key()
+    url = OPENOCD_DOWNLOADS[platform_key]
+    archive_name = os.path.basename(url)
+    download_path = os.path.join(storage_dir, archive_name)
+
+    print(f"[INFO] Installing verified OpenOCD {OPENOCD_PACKAGE_VERSION} into: {storage_dir}")
+    print(f"[INFO] Downloading: {url}")
+    urllib.request.urlretrieve(url, download_path)
+
+    if archive_name.lower().endswith(".zip"):
+        with zipfile.ZipFile(download_path, "r") as zf:
+            zf.extractall(storage_dir)
+    else:
+        with tarfile.open(download_path, "r:*") as tf:
+            tf.extractall(storage_dir)
+
+    os.remove(download_path)
+
+
+def package_name_for_entry(path: str) -> tuple | None:
+    package_json = os.path.join(path, "package.json")
+    if os.path.isfile(package_json):
+        try:
+            with open(package_json, "r", encoding="utf-8") as fp:
+                meta = json.load(fp)
+            return meta.get("name"), meta.get("version", "0")
+        except Exception:
+            return None
+
+    base = os.path.basename(path)
+    match = re.search(r"(openocd[^/\\\\]*)", base, re.IGNORECASE)
+    if match:
+        return ("openocd", match.group(1))
+    return None
 
 
 def find_managed_openocd_root(storage_dir: str) -> str | None:
@@ -125,17 +156,13 @@ def find_managed_openocd_root(storage_dir: str) -> str | None:
     for entry in os.scandir(storage_dir):
         if not entry.is_dir():
             continue
-        package_json = os.path.join(entry.path, "package.json")
-        if not os.path.isfile(package_json):
+        package_meta = package_name_for_entry(entry.path)
+        if not package_meta:
             continue
-        try:
-            with open(package_json, "r", encoding="utf-8") as fp:
-                meta = json.load(fp)
-        except Exception:
+        name, version = package_meta
+        if "openocd" not in (name or "").lower():
             continue
-        if meta.get("name") != "tool-openocd":
-            continue
-        candidates.append((parse_version(meta.get("version", "0")), entry.path, meta))
+        candidates.append((parse_version(version), entry.path, version))
     if not candidates:
         return None
     candidates.sort(key=lambda item: item[0], reverse=True)
@@ -145,11 +172,7 @@ def find_managed_openocd_root(storage_dir: str) -> str | None:
 def ensure_verified_openocd(storage_dir: str) -> str:
     managed = find_managed_openocd_root(storage_dir)
     if managed:
-        package_json = os.path.join(managed, "package.json")
-        with open(package_json, "r", encoding="utf-8") as fp:
-            meta = json.load(fp)
-        if meta.get("version") == PIO_OPENOCD_VERSION:
-            return managed
+        return managed
 
     install_verified_openocd(storage_dir)
     managed = find_managed_openocd_root(storage_dir)
