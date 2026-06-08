@@ -74,6 +74,24 @@ def parse_version(version: str) -> tuple:
     return tuple(parts)
 
 
+def get_openocd_version(executable: str) -> str | None:
+    try:
+        output = subprocess.check_output([executable, "--version"], stderr=subprocess.STDOUT, text=True)
+    except Exception:
+        return None
+    first_line = output.splitlines()[0].strip() if output.splitlines() else output.strip()
+    match = re.search(r"([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9]+)?)", output)
+    if match:
+        return match.group(1)
+    return first_line or None
+
+
+def is_recommended_openocd_version(version: str | None) -> bool:
+    if not version:
+        return False
+    return version.startswith("0.12.0")
+
+
 def default_openocd_root() -> str:
     system = platform.system().lower()
     if system == "windows":
@@ -175,7 +193,7 @@ def ensure_verified_openocd(storage_dir: str) -> str:
     return managed
 
 
-def find_openocd(openocd_root: str) -> str:
+def find_openocd_from_managed_dir(openocd_root: str) -> str:
     managed_root = ensure_verified_openocd(openocd_root)
     exe_name = "openocd.exe" if platform.system().lower() == "windows" else "openocd"
     candidate = os.path.join(managed_root, "bin", exe_name)
@@ -184,6 +202,13 @@ def find_openocd(openocd_root: str) -> str:
     print("[ERROR] openocd executable not found in verified package:")
     print(f"  - {candidate}")
     sys.exit(1)
+
+
+def find_system_openocd() -> str | None:
+    candidate = shutil.which("openocd")
+    if candidate and os.path.isfile(candidate):
+        return candidate
+    return None
 
 
 def find_openocd_cfg() -> str:
@@ -218,8 +243,30 @@ def ensure_expected_pyocd() -> None:
     subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", PYOCD_SPEC, "libusb"], check=True)
 
 
-def flash_with_openocd(hex_path: str, probe_id: str | None, openocd_root: str) -> int:
-    openocd = find_openocd(openocd_root)
+def flash_with_openocd(hex_path: str, probe_id: str | None, openocd_root: str, force_install: bool) -> int:
+    using_recommended = False
+    if force_install:
+        openocd = find_openocd_from_managed_dir(openocd_root)
+        using_recommended = True
+    else:
+        system_openocd = find_system_openocd()
+        if system_openocd:
+            openocd = system_openocd
+            version = get_openocd_version(openocd)
+            print(f"[INFO] Found system openocd: {openocd}")
+            if version:
+                print(f"[INFO] System openocd version: {version}")
+            if not is_recommended_openocd_version(version):
+                print(
+                    f"[WARN] Detected openocd version '{version or 'unknown'}', "
+                    f"which is not the recommended validated version family for XIAO nRF54LM20A."
+                )
+                print("[WARN] If flashing fails, rerun with --install-openocd to use the recommended bundled version.")
+        else:
+            print("[INFO] No system openocd found; installing and using the recommended verified version.")
+            openocd = find_openocd_from_managed_dir(openocd_root)
+            using_recommended = True
+
     openocd_cfg = find_openocd_cfg()
     cmd = [openocd]
 
@@ -246,7 +293,11 @@ def flash_with_openocd(hex_path: str, probe_id: str | None, openocd_root: str) -
     )
 
     print("[INFO] Running:", " ".join(cmd))
-    return subprocess.run(cmd).returncode
+    rc = subprocess.run(cmd).returncode
+    if rc != 0 and not using_recommended:
+        print("[WARN] Flashing with system openocd failed.")
+        print("[WARN] Please retry with --install-openocd to install and use the recommended validated OpenOCD package.")
+    return rc
 
 
 def flash_with_pyocd(hex_path: str, probe_id: str | None) -> int:
@@ -278,6 +329,11 @@ def main() -> None:
     parser.add_argument("--probe", help="Specify the unique ID of the debug probe to use.")
     parser.add_argument("--openocd-dir", help="Directory used to install and manage the verified OpenOCD package.")
     parser.add_argument(
+        "--install-openocd",
+        action="store_true",
+        help="Ignore any system openocd and install/use the recommended validated OpenOCD package.",
+    )
+    parser.add_argument(
         "--backend",
         choices=["openocd", "pyocd"],
         default="openocd",
@@ -290,7 +346,7 @@ def main() -> None:
 
     if args.backend == "openocd":
         openocd_root = resolve_openocd_root(args.openocd_dir)
-        rc = flash_with_openocd(hex_path, args.probe, openocd_root)
+        rc = flash_with_openocd(hex_path, args.probe, openocd_root, args.install_openocd)
     else:
         rc = flash_with_pyocd(hex_path, args.probe)
     if rc == 0:
