@@ -114,6 +114,27 @@
 
 &gpio1 {
 	status = "okay";
+
+	led_blue_off: led_blue_off {
+		gpio-hog;
+		gpios = <22 GPIO_ACTIVE_LOW>;
+		output-high;
+		line-name = "led_blue_off";
+	};
+
+	led_red_off: led_red_off {
+		gpio-hog;
+		gpios = <23 GPIO_ACTIVE_LOW>;
+		output-high;
+		line-name = "led_red_off";
+	};
+
+	led_green_off: led_green_off {
+		gpio-hog;
+		gpios = <24 GPIO_ACTIVE_LOW>;
+		output-high;
+		line-name = "led_green_off";
+	};
 };
 
 &gpio2 {
