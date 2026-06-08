@@ -18,18 +18,15 @@ class xiao_nrf54lm20a:
             14: ("gpio3", 3),
             15: ("gpio3", 4),
             "led": ("gpio1", 22),
-            "led_blue": ("gpio1", 22),
-            "led_red": ("gpio1", 23),
+            "led_blue": ("gpio1", 23),
+            "led_red": ("gpio1", 22),
             "led_green": ("gpio1", 24),
-            "led_b": ("gpio1", 22),
-            "led_r": ("gpio1", 23),
+            "led_b": ("gpio1", 23),
+            "led_r": ("gpio1", 22),
             "led_g": ("gpio1", 24),
             "sw": ("gpio0", 9),
-            "vbat_en": ("gpio1", 12),
-            "imu_en": ("gpio1", 12),
             "imu_scl": ("gpio0", 7),
             "imu_sda": ("gpio0", 8),
-            "mic_en": ("gpio1", 12),
         }
         return xiao_pin[pin]
 
