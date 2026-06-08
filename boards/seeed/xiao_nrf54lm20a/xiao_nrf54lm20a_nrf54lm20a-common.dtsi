@@ -10,14 +10,14 @@
 	leds {
 		compatible = "gpio-leds";
 
-		blue_led: blue_led {
+		red_led: red_led {
 			gpios = <&gpio1 22 GPIO_ACTIVE_LOW>;
-			label = "BLUE_LED";
+			label = "RED_LED";
 		};
 
-		red_led: red_led {
+		blue_led: blue_led {
 			gpios = <&gpio1 23 GPIO_ACTIVE_LOW>;
-			label = "RED_LED";
+			label = "BLUE_LED";
 		};
 
 		green_led: green_led {
@@ -86,8 +86,8 @@
 	};
 
 	aliases {
-		led0 = &blue_led;
-		led1 = &red_led;
+		led0 = &red_led;
+		led1 = &blue_led;
 		led2 = &green_led;
 		pwm-led0 = &pwm_led0;
 		pwm-led1 = &pwm_led1;
