@@ -89,19 +89,12 @@ def ensure_dir(path: str) -> str:
     return path
 
 
-def prompt_openocd_root(user_value: str | None) -> str:
+def resolve_openocd_root(user_value: str | None) -> str:
     if user_value:
         return ensure_dir(os.path.abspath(os.path.expanduser(user_value)))
 
     default_root = ensure_dir(default_openocd_root())
-    if any(entry.is_dir() for entry in os.scandir(default_root)):
-        return default_root
-
     print(f"[INFO] Verified OpenOCD install dir default: {default_root}")
-    if sys.stdin and sys.stdin.isatty():
-        entered = input("OpenOCD install dir (press Enter to use default): ").strip()
-        if entered:
-            return ensure_dir(os.path.abspath(os.path.expanduser(entered)))
     return default_root
 
 
@@ -296,7 +289,7 @@ def main() -> None:
     print(f"[INFO] Using HEX file: {hex_path}")
 
     if args.backend == "openocd":
-        openocd_root = prompt_openocd_root(args.openocd_dir)
+        openocd_root = resolve_openocd_root(args.openocd_dir)
         rc = flash_with_openocd(hex_path, args.probe, openocd_root)
     else:
         rc = flash_with_pyocd(hex_path, args.probe)
