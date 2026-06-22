@@ -123,18 +123,20 @@
 
 	/omit-if-no-ref/ pwm20_default: pwm20_default {
 		group1 {
-			psels = <NRF_PSEL(PWM_OUT0, 1, 22)>,
-				<NRF_PSEL(PWM_OUT1, 1, 23)>,
-				<NRF_PSEL(PWM_OUT2, 1, 24)>;
+			psels = <NRF_PSEL(PWM_OUT0, 1, 0)>,
+				<NRF_PSEL(PWM_OUT1, 1, 31)>,
+				<NRF_PSEL(PWM_OUT2, 1, 30)>,
+				<NRF_PSEL(PWM_OUT3, 1, 29)>;
 		};
 	};
 
 	/omit-if-no-ref/ pwm20_sleep: pwm20_sleep {
 		group1 {
-			psels = <NRF_PSEL(PWM_OUT0, 1, 22)>,
-				<NRF_PSEL(PWM_OUT1, 1, 23)>,
-				<NRF_PSEL(PWM_OUT2, 1, 24)>;
-			 low-power-enable;
+			psels = <NRF_PSEL(PWM_OUT0, 1, 0)>,
+				<NRF_PSEL(PWM_OUT1, 1, 31)>,
+				<NRF_PSEL(PWM_OUT2, 1, 30)>,
+				<NRF_PSEL(PWM_OUT3, 1, 29)>;
+			low-power-enable;
 		};
 	};
 

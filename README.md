@@ -7,7 +7,7 @@ This README file provides instructions for building and running MicroPython firm
 Before building the MicroPython firmware, ensure you have the following:
 
 1. **Zephyr Development Environment**:
-    - Install required tools: Python 3.10 or later, CMake 3.20.0 or later, and the Zephyr SDK toolchain.
+    - Install required tools: Python 3.10 or later, CMake 3.20.0 or later, Ninja, DTC, `west`, and the Zephyr SDK toolchain.
     - Install dependences:
       ```bash
       sudo apt-get update
@@ -19,11 +19,11 @@ Before building the MicroPython firmware, ensure you have the following:
       pip install pyelftools
       ```
     - Install the Zephyr SDK and set up the development environment by following the [Zephyr Getting Started Guide](https://docs.zephyrproject.org/latest/getting_started/index.html).
-    - Ensure you have Zephyr version 4.0 or later installed, as the Xiao nRF54L15 requires a recent version due to its nRF54L15 SoC.
-    - Example command to initialize Zephyr v4.0.0 for nrf:
+    - For Nordic `nRF54` boards in this repository, use **Nordic nRF Connect SDK v3.3.0 or later** so that Zephyr and the Nordic SoC support stay aligned.
+    - Example command to initialize a Nordic SDK workspace for `nRF54` boards:
       ```bash
-      # e.g. for XIAO nRF54L15 and XIAO nRF52840
-      west init -m https://github.com/nrfconnect/sdk-nrf --mr v3.0.2 zephyrproject 
+      # e.g. for XIAO nRF54L15 and XIAO nRF54LM20A
+      west init -m https://github.com/nrfconnect/sdk-nrf --mr v3.3.0 zephyrproject
       west update && west zephyr-export
 
       # e.g. for XIAO MG24
@@ -98,11 +98,17 @@ Before building the MicroPython firmware, ensure you have the following:
 To build the MicroPython firmware for the Zephyr boards or ESP32 boards, run the following commands from the root of your project directory (where the `lib/micropython/ports/zephyr` or `lib/micropython/ports/esp32` directory exists):
 
 1. **Building for Zephyr Boards**:
-    - Currently, MicroPython does not support the configuration for Xiao nRF54L15, so the compilation method is somewhat different.
+    - The Nordic `nRF54` boards in this repository are built with `sysbuild` and board-specific overlay/config files.
+    - Before building Nordic `nRF54` boards, make sure the Zephyr or NCS environment is active and `ZEPHYR_SDK_INSTALL_DIR` is set correctly for your machine.
     - For XIAO nRF54L15:
       ```bash
       cd micropython-seeed-boards && export PROJECT_DIR=$(pwd)
       west build ./lib/micropython/ports/zephyr --pristine --board xiao_nrf54l15/nrf54l15/cpuapp --sysbuild -- -DBOARD_ROOT=$PROJECT_DIR/ -DEXTRA_DTC_OVERLAY_FILE=$PROJECT_DIR/boards/xiao_nrf54l15_nrf54l15_cpuapp.overlay -DPM_STATIC_YML_FILE=$PROJECT_DIR/boards/pm_static_xiao_nrf54l15_nrf54l15_cpuapp.yml -DEXTRA_CONF_FILE=$PROJECT_DIR/boards/xiao_nrf54l15_nrf54l15_cpuapp.conf
+      ```
+    - For XIAO nRF54LM20A:
+      ```bash
+      cd micropython-seeed-boards && export PROJECT_DIR=$(pwd)
+      west build ./lib/micropython/ports/zephyr --pristine --board xiao_nrf54lm20a/nrf54lm20a/cpuapp --sysbuild -- -DBOARD_ROOT=$PROJECT_DIR/ -DEXTRA_DTC_OVERLAY_FILE=$PROJECT_DIR/boards/xiao_nrf54lm20a_nrf54lm20a_cpuapp.overlay -DPM_STATIC_YML_FILE=$PROJECT_DIR/boards/pm_static_xiao_nrf54lm20a_nrf54lm20a_cpuapp.yml -DEXTRA_CONF_FILE=$PROJECT_DIR/boards/xiao_nrf54lm20a_nrf54lm20a_cpuapp.conf
       ```
     - For XIAO nRF52840:
       ```bash
@@ -115,8 +121,9 @@ To build the MicroPython firmware for the Zephyr boards or ESP32 boards, run the
       export PROJECT_DIR=$(pwd)
       west build lib/micropython/ports/zephyr -b xiao_mg24 --pristine -- -DCONF_FILE=$PROJECT_DIR/boards/xiao_mg24.conf -DEXTRA_DTC_OVERLAY_FILE=$PROJECT_DIR/boards/xiao_mg24.overlay -DUSER_C_MODULES="$PROJECT_DIR/src/cmodules/modadc;$PROJECT_DIR/src/cmodules/modrtc;"
       ```
-    - If you encounter issues with undefined Kconfig symbols (e.g., `NET_SOCKETS_POSIX_NAMES`), check the `lib/micropython/ports/zephyr/prj.conf` file and comment out or remove unsupported configurations.
-    - Ensure the Zephyr version matches the requirements of the MicroPython port (v4.0 is recommended).
+    - If you encounter issues with undefined Kconfig symbols, first confirm that your NCS or Zephyr version matches the board family you are building.
+    - On Windows, if the build fails because of very long command lines during qstr generation, move the repository to a shorter path such as `C:\src\micropython-seeed-boards`.
+    - Build artifacts for `nRF54` boards are generated under `build/<board-name>/`, including `merged.hex`, `zephyr.hex`, and `zephyr.elf`.
 2. **Building for ESP32 Boards**:
     - Example For ESP32 Boards:
       ```bash
@@ -136,7 +143,8 @@ To build the MicroPython firmware for the Zephyr boards or ESP32 boards, run the
 The compiled firmware is available at https://github.com/Seeed-Studio/micropython-seeed-boards/releases. To flash the compiled firmware to the Zeyphr boards and ESP32 boards, run the following command from the root of your project directory:
 
 1. **Flashing for Zephyr Boards**:
-    - You first need to put the compiled firmware into the flash tool folder of XIAO nRF54L15 or XIAO MG24, and then run the following command:
+    - `nRF54` boards in this repository provide dedicated flash helpers under `tools/`.
+    - Copy the compiled firmware into the corresponding flash tool folder before running the helper script:
       ```bash
       # e.g. for XIAO nRF54L15
       cd micropython-seeed-boards/tools/xiao_nrf54l15_flash
@@ -154,6 +162,31 @@ The compiled firmware is available at https://github.com/Seeed-Studio/micropytho
       ./xiao_mg24_flash.bat
       # e.g. for Linux and Mac
       chmod +x xiao_mg24_flash.sh && ./xiao_mg24_flash.sh
+      ```
+    - For XIAO nRF54LM20A:
+      ```bash
+      cd micropython-seeed-boards/tools/xiao_nrf54lm20a_flash
+
+      # Windows
+      ./flash.bat
+
+      # Linux / macOS
+      chmod +x ./xiao_nrf54lm20a_flash.sh
+      ./xiao_nrf54lm20a_flash.sh
+      ```
+    - The XIAO nRF54LM20A flash helper uses **OpenOCD by default** to match the validated flashing flow used by Seeed's Nordic board support.
+    - If `openocd` is already available in your system `PATH`, the script uses it first. If the detected version is not the validated version family, the script prints a warning and you can rerun with:
+      ```bash
+      python xiao_nrf54lm20a_flash.py --install-openocd
+      ```
+    - If `openocd` is not installed, the script automatically downloads and installs the validated OpenOCD package into a per-user default directory:
+      - Windows: `%LOCALAPPDATA%\Seeed\OpenOCD`
+      - macOS: `~/Library/Application Support/Seeed/OpenOCD`
+      - Linux: `~/.local/share/seeed/openocd`
+    - If multiple CMSIS-DAP probes are connected, list them first and then flash with the selected probe ID:
+      ```bash
+      python -m pyocd list --probes
+      python xiao_nrf54lm20a_flash.py --probe <probe_id>
       ```
 2. **Flashing for ESP32 Boards**:
     - The esptool tool is recommended for flashing. It should be noted that when flashing the MicroPython firmware, **the starting address must be specified as 0x2000.**
@@ -184,7 +217,9 @@ The compiled firmware is available at https://github.com/Seeed-Studio/micropytho
       ```
 2. **Configure Thonny Interpreter**:
     - Go to Run-->Configure Interpreter, select "MicroPython (generic)" and port, then clicking OK, select the port in the lower right corner, usually showing as MicroPython(generic) · Virtual COM-Port @COMX.
-    - Then go to File->Open, select MicroPython device, copy the example/boards folder to the file system, and click OK. You can then open the example program in the example directory through Thonny and press `F5` to run it:
+    - On boards that ship with the frozen `boards.xiao` helper package, such as XIAO nRF54LM20A, you can use the helper APIs directly without uploading the `example/boards` directory first.
+    - On older firmware builds that do not freeze `boards.xiao`, copy the `example/boards` folder to the device file system before running board helper examples.
+    - You can then open the example program in the `example` directory through Thonny and press `F5` to run it:
       ```python
       import time
       from boards.xiao import XiaoPin
@@ -223,6 +258,8 @@ Refer to the [MicroPython Zephyr port documentation](https://github.com/micropyt
 - **Kconfig Errors**: If you see errors like `undefined symbol NET_SOCKETS_POSIX_NAMES`, edit `lib/micropython/ports/zephyr/prj.conf` and remove or comment out the problematic line.
 - **Board Not Found**: Ensure the Xiao nRF54L15 board files are in `./boards/seeed/xiao_nrf54l15/`.
 - **Build Failures**: Check `build/CMakeFiles/CMakeError.log` for detailed error messages.
-- **Zephyr Version Mismatch**: Ensure you are using Zephyr v4.0 or later, as older versions may not support the nRF54L15 SoC.
+- **Zephyr / NCS Version Mismatch**: Use a Zephyr or NCS release that already supports your target SoC. For `nRF54LM20A`, use Nordic nRF Connect SDK v3.3.0 or later.
+- **Multiple Debug Probes Connected**: Run `python -m pyocd list --probes` and pass `--probe <probe_id>` to the nRF54LM20A flash script.
+- **OpenOCD Flashing Issues on nRF54LM20A**: If your system `openocd` is too old or not built with `nRF54LM20A` support, rerun the script with `--install-openocd` to use the validated package managed by the script.
 
 For further assistance, consult the [Zephyr Documentation](https://docs.zephyrproject.org) or the MicroPython community.

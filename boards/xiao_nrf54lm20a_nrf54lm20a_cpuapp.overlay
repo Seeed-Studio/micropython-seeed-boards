@@ -32,7 +32,7 @@
 };
 
 &pwm20 {
-    status = "disabled";
+    status = "okay";
 };
 
 &wdt31 {
