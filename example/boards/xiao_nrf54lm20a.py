@@ -49,6 +49,7 @@ class xiao_nrf54lm20a:
             0: ("pwm20", 0),
             1: ("pwm20", 1),
             2: ("pwm20", 2),
+            3: ("pwm20", 3),
         }
         return xiao_pwm[pwm]
 
