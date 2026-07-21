@@ -1,5 +1,5 @@
---- /home/ys/zephyr-c5-workspace/zephyr/drivers/flash/flash_stm32_xspi.c	2026-07-21 10:35:41.033720985 +0800
-+++ /tmp/patched_flash.c	2026-07-21 10:36:11.385223759 +0800
+--- drivers/flash/flash_stm32_xspi.c
++++ drivers/flash/flash_stm32_xspi.c
 @@ -48,6 +48,126 @@
  
  #include "flash_stm32_xspi.h"

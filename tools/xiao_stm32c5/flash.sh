@@ -9,7 +9,7 @@ if [ "$#" -gt 0 ]; then
 elif [ -f "$SCRIPT_DIR/firmware/micropython-xiao-stm32c5.uf2" ]; then
     UF2="$SCRIPT_DIR/firmware/micropython-xiao-stm32c5.uf2"
 else
-    UF2="$SCRIPT_DIR/../dist/xiao-stm32c5-micropython-dev/firmware/micropython-xiao-stm32c5.uf2"
+    UF2="$SCRIPT_DIR/../../dist/xiao-stm32c5-micropython-dev/firmware/micropython-xiao-stm32c5.uf2"
 fi
 LABEL=XIAOC5BOOT
 

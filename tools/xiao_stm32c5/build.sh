@@ -5,22 +5,45 @@
 
 set -euo pipefail
 
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 PYTHON=${PYTHON:-python3}
 WEST=${WEST:-west}
 ZEPHYR_BASE=${ZEPHYR_BASE:-"$HOME/zephyrproject/zephyr"}
 BUILD_DIR=${BUILD_DIR:-"$ROOT/build/xiao_stm32c5"}
 BOARD_ROOT="${BUILD_DIR}.board-root"
 BACKUP_ROOT="${BUILD_DIR}.zephyr-backup"
+PATCH_LOCK_FILE="$ZEPHYR_BASE/.xiao_stm32c5_patch.lock"
 
 if [[ ! -d "$ZEPHYR_BASE" ]]; then
     echo "error: ZEPHYR_BASE does not exist: $ZEPHYR_BASE" >&2
     exit 2
 fi
 
+if [[ ! -f "$ZEPHYR_BASE/VERSION" ]]; then
+    echo "error: ZEPHYR_BASE does not contain a Zephyr VERSION file: $ZEPHYR_BASE" >&2
+    exit 2
+fi
+
 if ! command -v "$WEST" >/dev/null 2>&1; then
     echo "error: west was not found; activate the Zephyr Python environment first" >&2
     exit 2
+fi
+
+zephyr_version=$(sed -n \
+    -e 's/^VERSION_MAJOR[[:space:]]*=[[:space:]]*//p' \
+    -e 's/^VERSION_MINOR[[:space:]]*=[[:space:]]*//p' \
+    -e 's/^PATCHLEVEL[[:space:]]*=[[:space:]]*//p' \
+    "$ZEPHYR_BASE/VERSION" | paste -sd. -)
+if [[ "$zephyr_version" != "4.4.0" ]]; then
+    echo "error: this board requires Zephyr 4.4.0, found ${zephyr_version:-unknown} at $ZEPHYR_BASE" >&2
+    exit 2
+fi
+
+if command -v flock >/dev/null 2>&1; then
+    exec 9>"$PATCH_LOCK_FILE"
+    flock 9
+else
+    echo "warning: flock is unavailable; concurrent builds sharing $ZEPHYR_BASE are unsafe" >&2
 fi
 
 rm -rf "$BOARD_ROOT" "$BACKUP_ROOT"
@@ -86,7 +109,8 @@ export ZEPHYR_BASE
 
 if [[ -z "${ZEPHYR_TOOLCHAIN_VARIANT:-}" ]] && command -v arm-none-eabi-gcc >/dev/null 2>&1; then
     export ZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb
-    export GNUARMEMB_TOOLCHAIN_PATH="${GNUARMEMB_TOOLCHAIN_PATH:-$(dirname "$(dirname "$(command -v arm-none-eabi-gcc)")")}"
+    toolchain_bin=$(command -v arm-none-eabi-gcc)
+    export GNUARMEMB_TOOLCHAIN_PATH="${GNUARMEMB_TOOLCHAIN_PATH:-$(dirname "$(dirname "$toolchain_bin")")}"
 fi
 
 "$WEST" build \

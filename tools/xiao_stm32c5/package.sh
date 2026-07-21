@@ -3,7 +3,7 @@
 
 set -euo pipefail
 
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 VERSION=${1:-dev}
 BUILD_DIR=${BUILD_DIR:-"$ROOT/build/xiao_stm32c5"}
 OUTPUT_ROOT=${OUTPUT_ROOT:-"$ROOT/dist"}
@@ -24,7 +24,7 @@ cp "$ROOT/release/xiao_stm32c5/README.md" "$PACKAGE_DIR/README.md"
 sed "s/{{VERSION}}/$VERSION/g" \
     "$ROOT/release/xiao_stm32c5/RELEASE_NOTES.md" > "$PACKAGE_DIR/RELEASE_NOTES.md"
 cp "$ROOT/LICENSE" "$PACKAGE_DIR/LICENSE"
-cp "$ROOT/tools/flash_xiao_stm32c5.sh" "$PACKAGE_DIR/flash_xiao_stm32c5.sh"
+cp "$ROOT/tools/xiao_stm32c5/flash.sh" "$PACKAGE_DIR/flash_xiao_stm32c5.sh"
 chmod +x "$PACKAGE_DIR/flash_xiao_stm32c5.sh"
 
 if command -v sha256sum >/dev/null 2>&1; then

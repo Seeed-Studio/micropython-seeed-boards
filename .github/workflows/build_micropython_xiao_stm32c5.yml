@@ -43,11 +43,11 @@ jobs:
           ZEPHYR_TOOLCHAIN_VARIANT: gnuarmemb
           GNUARMEMB_TOOLCHAIN_PATH: /usr
         run: |
-          tools/xiao_stm32c5_build.sh
+          tools/xiao_stm32c5/build.sh
 
       - name: Assemble release package
         run: |
-          tools/package_xiao_stm32c5.sh "${GITHUB_SHA::12}"
+          tools/xiao_stm32c5/package.sh "${GITHUB_SHA::12}"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

@@ -194,6 +194,18 @@
 			data-rate = <XSPI_STR_TRANSFER>;
 			ospi-max-frequency = <DT_FREQ_M(48)>;
 			status = "okay";
+
+			/* MicroPython user storage: 2 MiB on the external NOR. */
+			partitions {
+				compatible = "fixed-partitions";
+				#address-cells = <1>;
+				#size-cells = <1>;
+
+				storage_partition: partition@0 {
+					label = "storage";
+					reg = <0x00000000 DT_SIZE_M(2)>;
+				};
+			};
 		};
 	};
 };
@@ -254,9 +266,9 @@
 			reg = <0x00082000 DT_SIZE_K(480)>;
 		};
 
-		/* Storage: 24KB */
-		storage_partition: partition@fa000 {
-			label = "storage";
+		/* Reserved tail: the MicroPython storage moved to external XSPI NOR. */
+		internal_reserved: partition@fa000 {
+			label = "internal-reserved";
 			reg = <0x000fa000 DT_SIZE_K(24)>;
 		};
 	};

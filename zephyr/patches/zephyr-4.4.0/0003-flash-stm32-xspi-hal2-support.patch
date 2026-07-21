@@ -1,5 +1,5 @@
---- /home/ys/zephyr-c5-workspace/zephyr/drivers/flash/flash_stm32_xspi.h	2026-07-21 10:17:35.054617450 +0800
-+++ /tmp/patched_flash.h	2026-07-21 10:36:11.391223858 +0800
+--- drivers/flash/flash_stm32_xspi.h
++++ drivers/flash/flash_stm32_xspi.h
 @@ -91,6 +91,10 @@
  	bool four_byte_opcodes;
  	bool requires_ulbpr;

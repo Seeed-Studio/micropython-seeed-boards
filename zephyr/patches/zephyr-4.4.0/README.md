@@ -1,8 +1,13 @@
 # Zephyr Driver Patches
 
 These patches fix issues in the pinned Zephyr 4.4.0 framework that are needed
-for XIAO STM32C5 (HAL2) support. Patches are applied in filename order and are
-idempotent.
+for XIAO STM32C5 (HAL2) support. They are applied only by
+`tools/xiao_stm32c5/build.sh`, in filename order, and are idempotent. The build
+script verifies the Zephyr version and restores every modified file on exit.
+
+The script serializes access to a shared Zephyr checkout with a lock. Other
+platform builds should still use a separate Zephyr checkout, because a build
+that starts outside this lock can observe the temporary patched files.
 
 ## When to remove a patch
 

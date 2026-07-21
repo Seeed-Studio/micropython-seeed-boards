@@ -288,7 +288,7 @@ source .venv/micropython-c5/bin/activate
 ZEPHYR_BASE="$PWD/zephyrproject/zephyr" \
   PYTHON="$PWD/.venv/micropython-c5/bin/python" \
   WEST="$PWD/.venv/micropython-c5/bin/west" \
-  tools/xiao_stm32c5_build.sh
+  tools/xiao_stm32c5/build.sh
 ```
 
 The script stages the board root, temporarily applies the STM32C5 HAL2 USB
@@ -351,7 +351,7 @@ The interactive test accepts `help`, `status`, `all`, `uart`, `adc`, `pwm`,
 After a successful build, create the self-contained package with:
 
 ```bash
-tools/package_xiao_stm32c5.sh 0.1.0
+tools/xiao_stm32c5/package.sh 0.1.0
 ```
 
 The output is placed under `dist/` and contains `firmware/`, `tests/`, a

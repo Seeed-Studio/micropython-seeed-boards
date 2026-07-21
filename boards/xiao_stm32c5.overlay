@@ -15,22 +15,6 @@
         };
     };
 
-    fstab {
-        compatible = "zephyr,fstab";
-
-        lfs1: lfs1 {
-            compatible = "zephyr,fstab,littlefs";
-            mount-point = "/flash";
-            partition = <&storage_partition>;
-            automount;
-            read-size = <32>;
-            prog-size = <32>;
-            cache-size = <128>;
-            lookahead-size = <64>;
-            block-cycles = <1024>;
-        };
-    };
-
     aliases {
         baten = &bat_en;
     };
@@ -51,4 +35,3 @@
         zephyr,resolution = <12>;
     };
 };
-

@@ -19,6 +19,12 @@ class xiao_stm32c5:
             15: ("gpiob", 14),
             "led": ("gpiob", 12),
             "bat_en": ("gpioe", 2),
+            # Compatibility alias used by the generic battery example.
+            "vbat_en": ("gpioe", 2),
+            # The IMU bus is fixed by Zephyr pinctrl; these aliases are
+            # provided for scripts that also refer to the physical pins.
+            "imu_sda": ("gpiob", 4),
+            "imu_scl": ("gpiob", 3),
             "imu_int": ("gpioc", 13),
         }
         return xiao_pin[pin]
@@ -34,9 +40,9 @@ class xiao_stm32c5:
         return xiao_adc[adc]
 
     def pwm(pwm):
-        # PA8 / TIM1_CH1: internal heater-capable PWM, independent of I2C1.
+        # PA8 / TIM1_CH1: STM32 PWM channels are 1-based.
         xiao_pwm = {
-            0: ("pwm1", 0),
+            0: ("pwm1", 1),
         }
         return xiao_pwm[pwm]
 
@@ -58,7 +64,5 @@ class xiao_stm32c5:
     def can(can):
         xiao_can = {
             "can0": "fdcan2",
-            "can1": "fdcan1",
         }
         return xiao_can[can]
-

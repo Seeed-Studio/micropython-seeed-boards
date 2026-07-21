@@ -1,5 +1,5 @@
---- /home/ys/micropython/build/xiao_stm32c5.zephyr-backup/drivers/usb/udc/udc_stm32.c	2026-07-20 16:09:48.726728731 +0800
-+++ /home/ys/micropython/src/zephyr/overrides/drivers/usb/udc/udc_stm32.c	2026-07-20 15:59:23.136172958 +0800
+--- drivers/usb/udc/udc_stm32.c
++++ drivers/usb/udc/udc_stm32.c
 @@ -11,6 +11,7 @@
   */
  

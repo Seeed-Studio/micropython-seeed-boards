@@ -1,5 +1,5 @@
---- /home/ys/micropython/src/build/xiao_stm32c5.zephyr-backup/drivers/adc/adc_stm32.c	2026-07-21 10:13:57.639687325 +0800
-+++ /home/ys/micropython/src/zephyr/overrides/drivers/adc/adc_stm32.c	2026-07-20 19:19:55.328785215 +0800
+--- drivers/adc/adc_stm32.c
++++ drivers/adc/adc_stm32.c
 @@ -1004,6 +1004,7 @@
  	const struct adc_stm32_cfg *config = (const struct adc_stm32_cfg *)dev->config;
  	ADC_TypeDef *adc = config->base;
