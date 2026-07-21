@@ -1,0 +1,54 @@
+/* MicroPython-specific XIAO STM32C5 resources. */
+#include <zephyr/dt-bindings/adc/adc.h>
+
+/ {
+    zephyr,user {
+        io-channels = <&adc1 0>, <&adc1 1>, <&adc1 2>, <&adc1 3>, <&adc1 4>;
+    };
+
+    battery_adc_ctrl {
+        compatible = "gpio-leds";
+
+        bat_en: bat_en {
+            gpios = <&gpioe 2 GPIO_ACTIVE_HIGH>;
+            label = "BAT_EN/PE2";
+        };
+    };
+
+    fstab {
+        compatible = "zephyr,fstab";
+
+        lfs1: lfs1 {
+            compatible = "zephyr,fstab,littlefs";
+            mount-point = "/flash";
+            partition = <&storage_partition>;
+            automount;
+            read-size = <32>;
+            prog-size = <32>;
+            cache-size = <128>;
+            lookahead-size = <64>;
+            block-cycles = <1024>;
+        };
+    };
+
+    aliases {
+        baten = &bat_en;
+    };
+};
+
+&adc1 {
+    pinctrl-0 = <&adc1_in0_pa0 &adc1_in1_pa1 &adc1_in2_pa2
+                 &adc1_in3_pa3 &adc1_in4_pa4>;
+    pinctrl-names = "default";
+    vref-mv = <3300>;
+    status = "okay";
+
+    channel@4 {
+        reg = <4>;
+        zephyr,gain = "ADC_GAIN_1";
+        zephyr,reference = "ADC_REF_INTERNAL";
+        zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_TICKS, 289)>;
+        zephyr,resolution = <12>;
+    };
+};
+

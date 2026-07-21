@@ -243,8 +243,126 @@ The compiled firmware is available at https://github.com/Seeed-Studio/micropytho
           led.value(1)
       ```
 
+## XIAO STM32C5 MicroPython
+
+This repository includes a Zephyr/MicroPython port for the Seeed XIAO STM32C5.
+The v1 user flow is TinyUF2 double-reset bootloader plus a USART1 REPL. USB
+CDC REPL and 1200-bps automatic bootloader entry are not required for v1.
+
+### Supported build environment
+
+The reproducible build uses Python 3.12, west 1.5 or newer, CMake 3.20 or
+newer, Ninja, device-tree compiler, and an ARM Cortex-M33 compiler. Zephyr
+4.4.0 is the validated framework revision. Either a user-installed Zephyr SDK
+or GNU Arm Embedded GCC may be used. No `sudo` is needed when these tools are
+already available or installed under the user's home directory.
+
+From a clean checkout, initialize the MicroPython submodule and a user-owned
+Zephyr workspace:
+
+```bash
+git clone --recurse-submodules https://github.com/Seeed-Studio/micropython-seeed-boards.git
+cd micropython-seeed-boards
+python3 -m venv .venv/micropython-c5
+source .venv/micropython-c5/bin/activate
+python -m pip install --upgrade pip west jsonschema pyelftools requests PyYAML
+west init -m https://github.com/zephyrproject-rtos/zephyr --mr v4.4.0 zephyrproject
+cd zephyrproject
+west update
+cd ..
+export ZEPHYR_BASE="$PWD/zephyrproject/zephyr"
+```
+
+If using GNU Arm Embedded GCC, set its user/system prefix explicitly when it
+is not in `PATH`:
+
+```bash
+export ZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb
+export GNUARMEMB_TOOLCHAIN_PATH="/path/to/arm-toolchain-prefix"
+```
+
+Build from the repository root:
+
+```bash
+source .venv/micropython-c5/bin/activate
+ZEPHYR_BASE="$PWD/zephyrproject/zephyr" \
+  PYTHON="$PWD/.venv/micropython-c5/bin/python" \
+  WEST="$PWD/.venv/micropython-c5/bin/west" \
+  tools/xiao_stm32c5_build.sh
+```
+
+The script stages the board root, temporarily applies the STM32C5 HAL2 USB
+and XSPI backports, restores the Zephyr workspace on exit, and generates:
+
+```text
+build/xiao_stm32c5/zephyr/zephyr.elf
+build/xiao_stm32c5/zephyr/zephyr.bin
+build/xiao_stm32c5/zephyr/zephyr.hex
+build/xiao_stm32c5/zephyr/micropython-xiao-stm32c5.uf2
+```
+
+The UF2 application address is `0x08008000`, the family ID is
+`0x00C5C5C5`, and the TinyUF2 volume label is `XIAOC5BOOT`. Verify checksums
+with `sha256sum` before distributing a file.
+
+### Flashing and REPL
+
+1. Connect the board with USB and double-click Reset.
+2. Wait for the `XIAOC5BOOT` mass-storage volume.
+3. Copy `micropython-xiao-stm32c5.uf2` to that volume. TinyUF2 processes the
+   file and reboots the board automatically.
+4. Connect a 3.3-V UART adapter to USART1: PA9 is TX, PA10 is RX, and GND is
+   common. Use 115200 8-N-1. USB CDC REPL is not the v1 acceptance path.
+5. Copy or paste `example/xiao_stm32c5_full_test.py` into the MicroPython
+   filesystem and run:
+
+```python
+import xiao_stm32c5_full_test as test
+test.main()
+```
+
+The user-side flash flow requires only the operating system's mass-storage
+copy operation; it does not require PlatformIO, ST-Link, J-Link, Python, or a
+local compiler.
+
+### Test wiring and limitations
+
+The interactive test accepts `help`, `status`, `all`, `uart`, `adc`, `pwm`,
+`fdcan`, `i2c`, `led on|off|blink`, `io <pin> [count]`, `imu`, `battery`, and
+`exit`. Every test reports `PASS`, `FAIL`, or `SKIP` and uses bounded waits.
+
+- Header I2C1 is D4/PB7 SDA and D5/PB6 SCL.
+- The onboard LSM6DS3TR-C is on I2C2, PB3/PB4, address `0x6A`.
+- UART loopback connects PA9 to PA10; do not run it while relying on that
+  same UART for the active REPL.
+- PWM uses internal PA8/TIM1_CH1 and requires an oscilloscope, LED, or test
+  point for waveform confirmation.
+- FDCAN uses FDCAN2 on PB5/PB13 with PB14 as transceiver standby. Loopback
+  needs no external bus; external testing needs a CAN transceiver and a
+  correctly terminated 120-ohm bus.
+- Battery testing requires a supported battery, BAT_EN on PE2, and the
+  battery sense input on PA4/ADC1_IN4. The script reports `SKIP` when no
+  voltage is present.
+- D8-D10 are GPIO-capable in this mapping; no hardware SPI capability is
+  promised for those pins.
+
+### Release package
+
+After a successful build, create the self-contained package with:
+
+```bash
+tools/package_xiao_stm32c5.sh 0.1.0
+```
+
+The output is placed under `dist/` and contains `firmware/`, `tests/`, a
+standalone README, release notes, `LICENSE`, and `SHA256SUMS.txt`. A package
+is not a formal release until the real-board TinyUF2, upgrade/rollback,
+wrong-UF2 recovery, and ten-cycle acceptance records have been completed.
+
 ## Features
+
 The MicroPython Zephyr port supports:
+
 - REPL over UART console.
 - `machine.Pin` for GPIO control with IRQ support.
 - `machine.I2C`, `machine.SPI`, and `machine.PWM` for peripheral control.
