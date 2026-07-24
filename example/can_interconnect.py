@@ -278,8 +278,7 @@ def test_variable_speed(can):
 
         time.sleep_ms(50)
         # Re-init for subsequent tests
-        new_can = can_init()
-        return _result("Variable speed", all_ok), new_can
+        can = can_init()
 
     return _result("Variable speed", all_ok), can
 

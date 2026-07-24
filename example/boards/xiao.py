@@ -154,8 +154,8 @@ if "stm32c5" in _machine_name:
         def __init__(self, can_num="can0", **kwargs):
             try:
                 super().__init__(xiao.can(can_num), **kwargs)
-            except Exception:
-                raise ValueError("Invalid can")
+            except Exception as exc:
+                raise ValueError("Invalid can: " + str(exc))
 
 
 class XiaoRTC(RTC):

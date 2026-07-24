@@ -22,14 +22,15 @@
 
 #define CAN_RX_QUEUE_DEPTH 128
 
-CAN_MSGQ_DEFINE(mp_can_rx_msgq, CAN_RX_QUEUE_DEPTH);
-
 typedef struct _can_obj_t {
     mp_obj_base_t base;
     const struct device *dev;
     int filter_id;
     bool fd;
     bool started;
+    bool we_started;
+    struct k_msgq rx_msgq;
+    struct can_frame rx_frames[CAN_RX_QUEUE_DEPTH];
 } can_obj_t;
 
 extern const mp_obj_type_t can_type;
@@ -57,7 +58,7 @@ static void can_cleanup(can_obj_t *self)
         self->filter_id = -1;
     }
 
-    if (self->started) {
+    if (self->started && self->we_started) {
         (void)can_stop(self->dev);
         self->started = false;
     }
@@ -104,9 +105,15 @@ static mp_obj_t can_make_new(const mp_obj_type_t *type,
     self->filter_id = -1;
     self->fd = parsed[ARG_fd].u_bool;
     self->started = false;
+    self->we_started = false;
+
+    k_msgq_init(&self->rx_msgq, (char *)self->rx_frames,
+                sizeof(struct can_frame), CAN_RX_QUEUE_DEPTH);
 
     int err = can_set_bitrate(dev, (uint32_t)parsed[ARG_bitrate].u_int);
-    if (err < 0) {
+    bool controller_running = (err == -EBUSY);
+
+    if (err < 0 && !controller_running) {
         can_cleanup(self);
         can_raise_errno("set bitrate", err);
     }
@@ -114,17 +121,21 @@ static mp_obj_t can_make_new(const mp_obj_type_t *type,
     can_mode_t mode = parsed[ARG_loopback].u_bool ? CAN_MODE_LOOPBACK : 0;
     if (self->fd) {
         mode |= CAN_MODE_FD;
-        err = can_set_bitrate_data(dev, (uint32_t)parsed[ARG_data_bitrate].u_int);
-        if (err < 0) {
-            can_cleanup(self);
-            can_raise_errno("set data bitrate", err);
+        if (!controller_running) {
+            err = can_set_bitrate_data(dev, (uint32_t)parsed[ARG_data_bitrate].u_int);
+            if (err < 0 && err != -EBUSY) {
+                can_cleanup(self);
+                can_raise_errno("set data bitrate", err);
+            }
         }
     }
 
-    err = can_set_mode(dev, mode);
-    if (err < 0) {
-        can_cleanup(self);
-        can_raise_errno("set mode", err);
+    if (!controller_running) {
+        err = can_set_mode(dev, mode);
+        if (err < 0 && err != -EBUSY) {
+            can_cleanup(self);
+            can_raise_errno("set mode", err);
+        }
     }
 
     struct can_filter filter = {
@@ -132,14 +143,18 @@ static mp_obj_t can_make_new(const mp_obj_type_t *type,
         .mask = 0,
         .flags = 0,
     };
-    self->filter_id = can_add_rx_filter_msgq(dev, &mp_can_rx_msgq, &filter);
+    self->filter_id = can_add_rx_filter_msgq(dev, &self->rx_msgq, &filter);
     if (self->filter_id < 0) {
         can_cleanup(self);
         can_raise_errno("add filter", self->filter_id);
     }
 
     err = can_start(dev);
-    if (err < 0 && err != -EALREADY) {
+    if (err == 0) {
+        self->we_started = true;
+    } else if (err == -EALREADY) {
+        self->we_started = false;
+    } else {
         can_cleanup(self);
         can_raise_errno("start", err);
     }
@@ -158,6 +173,19 @@ static mp_obj_t can_send_fun(mp_obj_t self_in, mp_obj_t id_in, mp_obj_t data_in)
     mp_get_buffer_raise(data_in, &buffer, MP_BUFFER_READ);
     if (buffer.len > CAN_MAX_DLEN || (!self->fd && buffer.len > 8U)) {
         mp_raise_ValueError(MP_ERROR_TEXT("CAN payload is too long"));
+    }
+
+    /* CAN FD DLC only encodes specific payload lengths: 0-8, 12, 16, 20,
+     * 24, 32, 48, 64.  Reject lengths that cannot be represented exactly
+     * to avoid silent zero-padding (e.g. 9 bytes -> DLC 9 -> 12 bytes on
+     * the wire). */
+    if (self->fd) {
+        uint8_t len = (uint8_t)buffer.len;
+        if (!(len <= 8 || len == 12 || len == 16 || len == 20 ||
+              len == 24 || len == 32 || len == 48 || len == 64)) {
+            mp_raise_ValueError(MP_ERROR_TEXT(
+                "CAN FD payload must be 0-8, 12, 16, 20, 24, 32, 48, or 64 bytes"));
+        }
     }
 
     struct can_frame frame = {0};
@@ -187,7 +215,7 @@ static mp_obj_t can_recv_fun(size_t n_args, const mp_obj_t *args)
     }
 
     struct can_frame frame;
-    int err = k_msgq_get(&mp_can_rx_msgq, &frame, K_MSEC(timeout_ms));
+    int err = k_msgq_get(&self->rx_msgq, &frame, K_MSEC(timeout_ms));
     if (err == -EAGAIN || err == -ENOMSG) {
         return mp_const_none;
     }

@@ -35,3 +35,8 @@
         zephyr,resolution = <12>;
     };
 };
+
+/* Bump I2C2 to 400 kHz so IMU reads and bus scans complete faster. */
+&i2c2 {
+    clock-frequency = <I2C_BITRATE_FAST>;
+};
