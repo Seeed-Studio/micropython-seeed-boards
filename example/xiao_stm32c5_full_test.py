@@ -1,1104 +1,503 @@
-# XIAO STM32C5 MicroPython interactive board test
-#
-# Run:
-#   import xiao_stm32c5_full_test as test
-#   test.main()
+"""XIAO STM32C5 complete hardware test.
 
-import sys
+Run from the REPL with:
+    import xiao_stm32c5_full_test as t; t.main()
+"""
 import time
 import gc
-
 from machine import Pin
-
 from boards.xiao import XiaoADC, XiaoCAN, XiaoI2C, XiaoPin, XiaoPWM, XiaoUART
 
-
-BOARD_NAME = "XIAO STM32C5"
-LED_PIN = "led"
-BATTERY_ENABLE_PIN = "bat_en"
-BATTERY_DIVIDER = 2.0
-IMU_ADDRESS = 0x6A
-IMU_WHO_AM_I = 0x0F
-IMU_EXPECTED_ID = 0x6A
-IMU_CTRL1_XL = 0x10
-IMU_CTRL2_G = 0x11
-IMU_CTRL3_C = 0x12
-IMU_ODR_104HZ = 0x40  # 104 Hz ODR, ±2g / 245 dps
-IMU_CONFIG_DELAY_MS = 20
-IMU_OUT_TEMP_L = 0x20
-IMU_OUTX_L_G = 0x22
-IMU_OUTX_L_XL = 0x28
-
-# Expected ADC reference voltage in mV (from overlay: vref-mv = <3300>)
-ADC_VREF_MV = 3300
-
-_test_pass = 0
-_test_fail = 0
-_test_skip = 0
+BOARD = "XIAO STM32C5"
+VREF = 3300
+IMU = 0x6A
+_p = _f = _s = 0
 
 
-def _result(name, state, message=""):
-    global _test_pass, _test_fail, _test_skip
-    suffix = " - " + str(message) if message else ""
-    print("[{0}] {1}{2}".format(state, name, suffix))
+def _r(name, state, msg=""):
+    global _p, _f, _s
+    print("[{0}] {1}{2}".format(state, name, " - " + str(msg) if msg else ""))
     if state == "PASS":
-        _test_pass += 1
+        _p += 1
     elif state == "FAIL":
-        _test_fail += 1
+        _f += 1
     elif state == "SKIP":
-        _test_skip += 1
+        _s += 1
     return state == "PASS"
 
 
-def _parse_pin(value):
-    value = str(value).lower()
-    if value.startswith("d"):
-        value = value[1:]
-    try:
-        return int(value)
-    except Exception:
-        return value
+def _off(obj):
+    if obj is not None:
+        try:
+            obj.deinit()
+        except Exception:
+            pass
 
 
-def _read_i16(data, index):
-    value = data[index] | (data[index + 1] << 8)
-    if value & 0x8000:
-        value -= 0x10000
-    return value
-
-
-def _open_i2c(name):
+def _i2c(name="imu"):
     return XiaoI2C(name, "imu_sda", "imu_scl", 400000)
 
 
-def _stats(samples, name="samples"):
-    """Return (min, max, avg, stddev) for a list of samples."""
-    if not samples:
-        return (0, 0, 0, 0)
-    n = len(samples)
-    avg = sum(samples) / n
-    var = sum((s - avg) ** 2 for s in samples) / n
-    return min(samples), max(samples), avg, var ** 0.5
+def _i16(data, i):
+    v = data[i] | data[i + 1] << 8
+    return v - 65536 if v & 0x8000 else v
 
 
-def print_help():
-    print("Commands:")
-    print("  help              show this help")
-    print("  status            show board info")
-    print("  all               run all non-destructive tests")
-    print("  quick             quick smoke test (ADC+LED+I2C+IMU)")
-    print("  adc               full ADC test (ch0-3, multi-sample, cross-talk)")
-    print("  adc_simple        quick ADC read (A0-A3)")
-    print("  pwm               PWM output test (PA8, 1kHz)")
-    print("  pwm_full          PWM sweep test (100Hz-10kHz)")
-    print("  fdcan             CAN loopback test (500k/2M FD)")
-    print("  fdcan_stress      CAN stress test (100 frames)")
-    print("  fdcan_multi       CAN multi-instance queue isolation")
-    print("  fdcan_deinit_iso  CAN deinit isolation (2nd instance)")
-    print("  fdcan_bad_payload CAN FD reject invalid payload lengths")
-    print("  fdcan_speeds      CAN variable speed test (5 speeds)")
-    print("  i2c               scan header and IMU buses")
-    print("  i2c_stress        repeated I2C scan (3x)")
-    print("  led on|off|blink  control onboard LED")
-    print("  io <pin> [count]  toggle a GPIO")
-    print("  io_all            test all GPIO pins D0-D15")
-    print("  gpio_in           GPIO input test (D8-D11, pull-up)")
-    print("  imu               read IMU once")
-    print("  imu_verify        verify IMU data changes between reads")
-    print("  battery           read battery voltage")
-    print("  uart              UART loopback test (need PA9-PA10 jumper)")
-    print("  storage           LittleFS read/write/delete test")
-    print("  rtc               RTC set/get datetime test")
-    print("  i2c1_header       scan I2C1 header bus (D4/D5)")
-    print("  fdcan_external    CAN external transceiver test (two boards)")
-    print("  exit              leave the test console")
-    print("")
-    print("External test prerequisites:")
-    print("  uart: connect PA9 to PA10 only when the REPL is not in use")
-    print("  pwm: observe internal PA8/TIM1_CH1 test point with a scope")
-    print("  fdcan: use loopback or a CAN transceiver and 120-ohm bus")
-    print("  battery: connect a supported battery; BAT_EN is PE2, sense is PA4")
+def _can(fd=True, data=2000000, bitrate=500000):
+    return XiaoCAN("can0", bitrate=bitrate, data_bitrate=data, fd=fd,
+                   loopback=True)
 
 
-def test_status():
+def _stats(a):
+    n = len(a)
+    avg = sum(a) / n
+    return min(a), max(a), avg, (sum((x - avg) ** 2 for x in a) / n) ** .5
+
+
+def test_led():
     try:
-        import sys as _sys
-        print("board:", BOARD_NAME)
-        print("machine:", _sys.implementation._machine)
-        print("platform:", _sys.platform)
-        print("GC free:", gc.mem_free())
-        print("pins: D0-D3=ADC, D4/D5=I2C1, D6/D7=USART1")
-        print("can: default FDCAN2 on PB5/PB13")
-        print("imu: I2C2 PB3/PB4, address 0x6A")
-        print("battery: BAT_EN PE2, ADC1_IN4 PA4, divider 2:1")
-        return _result("status", "PASS")
-    except Exception as exc:
-        return _result("status", "FAIL", exc)
-
-
-# --- LED ---
-
-def test_led(action="blink"):
-    try:
-        led = XiaoPin(LED_PIN, Pin.OUT)
-        if action == "on":
+        led = XiaoPin("led", Pin.OUT)
+        for _ in range(3):
             led.value(0)
-        elif action == "off":
+            time.sleep_ms(100)
             led.value(1)
-        else:
-            for _ in range(3):
-                led.value(0)
-                time.sleep_ms(150)
-                led.value(1)
-                time.sleep_ms(150)
-            led.value(1)
-        return _result("LED", "PASS", "active-low, action={0}".format(action))
-    except Exception as exc:
-        return _result("LED", "FAIL", exc)
+            time.sleep_ms(100)
+        led.value(1)
+        return _r("LED", "PASS", "active-low blink")
+    except Exception as e:
+        return _r("LED", "FAIL", e)
 
 
-# --- GPIO ---
-
-def test_io(pin=0, count=2):
-    try:
-        pin_id = _parse_pin(pin)
-        gpio = XiaoPin(pin_id, Pin.OUT)
-        for _ in range(max(1, count)):
-            gpio.value(0)
-            time.sleep_ms(50)
-            gpio.value(1)
-            time.sleep_ms(50)
-        return _result("GPIO D{0}".format(pin_id), "PASS", "count={0}".format(count))
-    except Exception as exc:
-        return _result("GPIO D{0}".format(pin), "FAIL", exc)
-
-
-def test_io_all():
-    """Test all GPIO pins D0-D15, skipping REPL pins (D6/D7=USART1)."""
-    # D6/D7 are USART1 (REPL), cannot use as GPIO
-    skip = {6, 7}
-    passed = 0
-    failed = []
-    skipped = []
-    for pin in range(16):
-        if pin in skip:
-            skipped.append("D{0}".format(pin))
+def test_gpio():
+    bad = []
+    for p in range(16):
+        if p in (6, 7):
             continue
         try:
-            gpio = XiaoPin(pin, Pin.OUT)
-            gpio.value(0)
+            g = XiaoPin(p, Pin.OUT)
+            g.value(0)
             time.sleep_ms(10)
-            gpio.value(1)
-            time.sleep_ms(10)
-            passed += 1
-        except Exception as exc:
-            failed.append("D{0}:{1}".format(pin, exc))
-    result_msg = "{0}/{1} ok".format(passed, 16 - len(skip))
-    if skipped:
-        result_msg += ", skipped: {0}".format(", ".join(skipped))
-    if failed:
-        result_msg += ", failed: {0}".format(", ".join(failed))
-        return _result("GPIO all", "FAIL", result_msg)
-    return _result("GPIO all", "PASS", result_msg)
+            g.value(1)
+        except Exception as e:
+            bad.append("D{0}:{1}".format(p, e))
+    _r("GPIO output", "FAIL" if bad else "PASS",
+       "failed: " + ", ".join(bad) if bad else "14 pins ok; D6/D7 skipped (REPL)")
+    bad = []
+    for p in (8, 9, 10, 11):
+        try:
+            if XiaoPin(p, Pin.IN, Pin.PULL_UP).value() != 1:
+                bad.append("D{0}=0".format(p))
+        except Exception as e:
+            bad.append("D{0}:{1}".format(p, e))
+    return _r("GPIO input", "FAIL" if bad else "PASS",
+              ", ".join(bad) if bad else "D8-D11 pull-up ok")
 
 
-# --- ADC (comprehensive) ---
-
-def _adc_read_channel(channel, n_samples=10):
-    """Read an ADC channel n times and return (raw_list, uv_list)."""
-    raw_list = []
-    uv_list = []
-    adc = None
+def _adc_read(ch, n=10):
+    raw = []
+    uv = []
     try:
-        adc = XiaoADC(channel)
-        for _ in range(n_samples):
-            raw = adc.read()
-            raw_list.append(raw)
+        a = XiaoADC(ch)
+        for _ in range(n):
+            raw.append(a.read())
             try:
-                uv = adc.read_uv()
-                uv_list.append(uv)
+                uv.append(a.read_uv())
             except Exception:
-                uv_list.append(None)
+                uv.append(None)
             time.sleep_ms(1)
     except Exception:
         pass
-    return raw_list, uv_list
-
-
-def _adc_check_channel(channel, label):
-    """Comprehensive check of a single ADC channel."""
-    raw_list, uv_list = _adc_read_channel(channel, 10)
-
-    if not raw_list:
-        print("  [{0}] FAIL: cannot read".format(label))
-        return False, "cannot read"
-
-    # Check 1: all values are in valid range (0-4095 for 12-bit)
-    out_of_range = [r for r in raw_list if r < 0 or r > 4095]
-    if out_of_range:
-        print("  [{0}] FAIL: out of range: {1}".format(label, out_of_range))
-        return False, "out of range: {0}".format(out_of_range)
-
-    # Check 2: compute statistics
-    rmin, rmax, ravg, rstd = _stats(raw_list)
-    uvs = [u for u in uv_list if u is not None]
-    if uvs:
-        umin, umax, uavg, ustd = _stats(uvs)
-
-    # Check 3: noise level (stddev should be reasonable)
-    if rstd > 100:
-        print("  [{0}] WARN: noisy (raw std={1:.0f}, range=[{2},{3}])".format(
-            label, rstd, rmin, rmax))
-    else:
-        print("  [{0}] raw={1:.0f}+-{2:.0f} range=[{3},{4}]".format(
-            label, ravg, rstd, rmin, rmax))
-
-    # Check 4: read_uv() consistency with read()
-    if uvs and ravg > 0:
-        # Expected uv from raw: raw / 4095 * 3300 * 1000
-        expected_uv_avg = (ravg / 4095.0) * ADC_VREF_MV * 1000
-        uv_avg = uavg
-        # Allow 10% tolerance for calibration differences
-        if expected_uv_avg > 0:
-            ratio = uv_avg / expected_uv_avg
-            if ratio < 0.8 or ratio > 1.2:
-                print("  [{0}] WARN: uv/raw mismatch: uv={1:.0f}uV, expected~{2:.0f}uV".format(
-                    label, uv_avg, expected_uv_avg))
-
-    # Check 5: stale value (all reads identical -> possibly stuck)
-    if rmin == rmax and ravg > 0:
-        print("  [{0}] WARN: all readings identical ({1}), possibly stuck".format(
-            label, rmin))
-
-    return True, ""
+    return raw, uv
 
 
 def test_adc():
-    """Full ADC test: channel-by-channel, multi-sample, cross-talk check."""
-    print("--- ADC Full Test ---")
-    all_ok = True
-
-    # Phase 1: read each channel independently
-    print("Phase 1: Individual channel sampling (10 samples each)")
+    ok = True
+    base = []
     for ch in range(4):
-        ok, msg = _adc_check_channel(ch, "A{0}".format(ch))
-        if not ok:
-            all_ok = False
-
-    # Phase 2: cross-talk check - read all channels, then read one while others change
-    print("Phase 2: Cross-talk check")
+        raw, uv = _adc_read(ch)
+        if not raw or any(x < 0 or x > 4095 for x in raw):
+            print("[ADC A{0}] FAIL: unreadable or out of range".format(ch))
+            ok = False
+            base.append(None)
+            continue
+        lo, hi, avg, sd = _stats(raw)
+        base.append(avg)
+        print("[ADC A{0}] raw={1:.0f}+-{2:.0f} range={3}-{4}".format(
+            ch, avg, sd, lo, hi))
+        us = [x for x in uv if x is not None]
+        if us and avg:
+            expected = avg / 4095.0 * VREF * 1000
+            ratio = (sum(us) / len(us)) / expected
+            if ratio < .8 or ratio > 1.2:
+                print("  WARN: read_uv/raw mismatch")
+    for ch in range(4):
+        if base[ch] is None:
+            continue
+        try:
+            a = XiaoADC(ch)
+            static = [a.read() for _ in range(5)]
+            g = XiaoPin((ch + 1) % 4, Pin.OUT)
+            moved = []
+            for i in range(10):
+                g.value(i & 1)
+                time.sleep_ms(1)
+                moved.append(a.read())
+            drift = abs(sum(moved) / len(moved) - sum(static) / len(static))
+            print("  A{0} cross-talk drift={1:.0f}".format(ch, drift))
+        except Exception as e:
+            print("  A{0} cross-talk SKIP: {1}".format(ch, e))
     try:
-        # Baseline: read all channels
-        baselines = []
-        for ch in range(4):
-            r, _ = _adc_read_channel(ch, 3)
-            if r:
-                baselines.append(sum(r) / len(r))
-            else:
-                baselines.append(None)
+        v = XiaoADC("vbat").read()
+        print("[ADC vbat] raw={0}".format(v))
+    except Exception as e:
+        print("[ADC vbat] FAIL: {0}".format(e))
+        ok = False
+    return _r("ADC full", "PASS" if ok else "FAIL")
 
-        # Cross-talk: read channel 0 while channel 1 is being toggled as GPIO
-        # Skip channels that conflict with REPL (D6=ch6, D7=ch7)
-        for test_ch in range(4):
-            if baselines[test_ch] is None:
-                continue
-            # Read the test channel 5 times
-            adc = XiaoADC(test_ch)
-            readings_static = []
-            for _ in range(5):
-                readings_static.append(adc.read())
-                time.sleep_ms(2)
-            avg_static = sum(readings_static) / len(readings_static)
-
-            # Toggle adjacent channels as GPIO and read test channel
-            toggle_ch = (test_ch + 1) % 4
-            try:
-                gpio = XiaoPin(toggle_ch, Pin.OUT)
-                readings_toggle = []
-                for _ in range(10):
-                    gpio.value(0 if _ % 2 == 0 else 1)
-                    time.sleep_ms(1)
-                    readings_toggle.append(adc.read())
-                avg_toggle = sum(readings_toggle) / len(readings_toggle)
-                diff = abs(avg_toggle - avg_static)
-                if diff > 50:
-                    print("  A{0}: cross-talk WARN: {1:.0f} raw drift when D{2} toggled".format(
-                        test_ch, diff, toggle_ch))
-                else:
-                    print("  A{0}: cross-talk OK (drift={1:.0f})".format(test_ch, diff))
-            except Exception:
-                print("  A{0}: cross-talk SKIP (cannot toggle D{1})".format(test_ch, toggle_ch))
-    except Exception as exc:
-        print("  cross-talk check error:", exc)
-
-    # Phase 3: check channel 4 (battery) exists
-    print("Phase 3: Battery channel check")
-    try:
-        adc = XiaoADC("vbat")
-        raw = adc.read()
-        print("  vbat: raw={0} (channel 4 accessible)".format(raw))
-    except Exception as exc:
-        print("  vbat: FAIL -", exc)
-        all_ok = False
-
-    return _result("ADC full", "PASS" if all_ok else "FAIL")
-
-
-def test_adc_simple():
-    """Quick ADC read (A0-A3)."""
-    passed = True
-    values = []
-    try:
-        for channel in range(4):
-            adc = XiaoADC(channel)
-            raw = adc.read()
-            try:
-                uv = adc.read_uv()
-                values.append("A{0}: raw={1}, {2}mV".format(channel, raw, uv // 1000))
-            except Exception:
-                values.append("A{0}: raw={1}".format(channel, raw))
-        print("[ADC] " + "; ".join(values))
-        return _result("ADC simple", "PASS" if passed else "FAIL")
-    except Exception as exc:
-        return _result("ADC simple", "FAIL", exc)
-
-
-# --- PWM ---
 
 def test_pwm():
     pwm = None
+    ok = True
     try:
         pwm = XiaoPWM(0)
-        pwm.init(freq=1000, duty_u16=32768)
-        time.sleep_ms(250)
-        print("[PWM] pin=PA8, freq=1000Hz, duty=50%")
-        return _result("PWM", "PASS", "scope/LED verification required")
-    except Exception as exc:
-        return _result("PWM", "FAIL", exc)
-    finally:
-        if pwm is not None:
-            try:
-                pwm.deinit()
-            except Exception:
-                pass
-
-
-def test_pwm_full():
-    """PWM sweep test: different frequencies and duty cycles."""
-    pwm = None
-    all_ok = True
-    try:
-        pwm = XiaoPWM(0)
-        freqs = [100, 500, 1000, 5000, 10000]
-        duties = [25, 50, 75]
-        for freq in freqs:
-            for duty_pct in duties:
-                duty_u16 = int(duty_pct / 100.0 * 65535)
+        for hz in (100, 500, 1000, 5000, 10000):
+            for duty in (25, 50, 75):
                 try:
-                    pwm.init(freq=freq, duty_u16=duty_u16)
+                    pwm.init(freq=hz, duty_u16=int(duty * 655.35))
                     time.sleep_ms(50)
-                except Exception as exc:
-                    print("  PWM {0}Hz/{1}%: FAIL ({2})".format(freq, duty_pct, exc))
-                    all_ok = False
-        print("  PWM sweep: {0} freqs x {1} duties".format(len(freqs), len(duties)))
-        return _result("PWM full", "PASS" if all_ok else "FAIL",
-                       "scope verification required")
-    except Exception as exc:
-        return _result("PWM full", "FAIL", exc)
+                except Exception as e:
+                    print("[PWM] {0}Hz/{1}% FAIL: {2}".format(hz, duty, e))
+                    ok = False
+        return _r("PWM full", "PASS" if ok else "FAIL",
+                  "15 settings; verify output with scope/LED")
+    except Exception as e:
+        return _r("PWM full", "FAIL", e)
     finally:
-        if pwm is not None:
-            try:
-                pwm.deinit()
-            except Exception:
-                pass
+        _off(pwm)
 
-
-# --- I2C ---
 
 def test_i2c():
-    """Scan IMU bus only. i2c0 (header D4/D5) is skipped — no external
-    devices are connected, and probing an empty bus is slow."""
-    found = []
     try:
-        bus = _open_i2c("imu")
-        addresses = bus.scan()
-        print("[I2C] imu: {0}".format(
-            [hex(address) for address in addresses]))
-        found.extend(addresses)
-        return _result("I2C", "PASS" if found else "SKIP",
-                       "no device detected" if not found else "scan complete")
-    except Exception as exc:
-        return _result("I2C", "FAIL", exc)
-
-
-def test_i2c_stress():
-    """Repeated I2C scan to check for intermittent issues."""
-    all_ok = True
-    try:
-        bus = _open_i2c("imu")
-        results = []
-        for i in range(3):
-            addresses = bus.scan()
-            results.append(set(addresses))
+        b = _i2c()
+        a = b.scan()
+        _r("I2C IMU scan", "PASS" if a else "SKIP",
+           [hex(x) for x in a] if a else "no device")
+        old = set(a)
+        stable = True
+        for _ in range(2):
             time.sleep_ms(20)
-        # Check all scans returned the same result
-        first = results[0]
-        for i, r in enumerate(results[1:], 1):
-            if r != first:
-                print("  scan {0}: mismatch: {1} vs {2}".format(
-                    i, [hex(a) for a in sorted(first)],
-                    [hex(a) for a in sorted(r)]))
-                all_ok = False
-        print("  I2C stress: 3 scans, {0} devices consistently found: {1}".format(
-            len(first), [hex(a) for a in sorted(first)]))
-        return _result("I2C stress", "PASS" if all_ok else "FAIL")
-    except Exception as exc:
-        return _result("I2C stress", "SKIP", exc)
+            if set(b.scan()) != old:
+                stable = False
+        _r("I2C stress", "PASS" if stable else "FAIL", "3 scans")
+    except Exception as e:
+        _r("I2C IMU scan", "FAIL", e)
+        _r("I2C stress", "SKIP", e)
+    try:
+        b = XiaoI2C("i2c0", "i2c1_sda", "i2c1_scl", 400000)
+        a = b.scan()
+        return _r("I2C1 header", "PASS", "{0} device(s) {1}".format(
+            len(a), [hex(x) for x in a]))
+    except Exception as e:
+        return _r("I2C1 header", "SKIP", e)
 
-
-# --- IMU ---
 
 def test_imu():
     try:
-        bus = _open_i2c("imu")
-        who = bus.readfrom_mem(IMU_ADDRESS, IMU_WHO_AM_I, 1)[0]
-        if who != IMU_EXPECTED_ID:
-            return _result("IMU", "FAIL",
-                           "WHO_AM_I=0x{0:02X}".format(who))
-        bus.writeto_mem(IMU_ADDRESS, IMU_CTRL3_C, bytes((0x44,)))
-        bus.writeto_mem(IMU_ADDRESS, IMU_CTRL1_XL, bytes((IMU_ODR_104HZ,)))
-        bus.writeto_mem(IMU_ADDRESS, IMU_CTRL2_G, bytes((IMU_ODR_104HZ,)))
-        time.sleep_ms(IMU_CONFIG_DELAY_MS)
-        data = bus.readfrom_mem(IMU_ADDRESS, IMU_OUT_TEMP_L, 14)
-        temperature = 25.0 + _read_i16(data, 0) / 256.0
-        gx = _read_i16(data, 2)
-        gy = _read_i16(data, 4)
-        gz = _read_i16(data, 6)
-        ax = _read_i16(data, 8)
-        ay = _read_i16(data, 10)
-        az = _read_i16(data, 12)
-        print("[IMU] temp={0:.2f}C raw_accel=({1},{2},{3}) raw_gyro=({4},{5},{6})".format(
-            temperature, ax, ay, az, gx, gy, gz))
-        return _result("IMU", "PASS", "WHO_AM_I=0x{0:02X}".format(who))
-    except Exception as exc:
-        return _result("IMU", "FAIL", exc)
-
-
-def test_imu_verify():
-    """Verify IMU data changes between reads (not stuck)."""
-    try:
-        bus = _open_i2c("imu")
-
-        bus.writeto_mem(IMU_ADDRESS, IMU_CTRL3_C, bytes((0x44,)))
-        bus.writeto_mem(IMU_ADDRESS, IMU_CTRL1_XL, bytes((IMU_ODR_104HZ,)))
-        bus.writeto_mem(IMU_ADDRESS, IMU_CTRL2_G, bytes((IMU_ODR_104HZ,)))
-        time.sleep_ms(IMU_CONFIG_DELAY_MS)
-
+        b = _i2c()
+        who = b.readfrom_mem(IMU, 0x0F, 1)[0]
+        if who != IMU:
+            return _r("IMU", "FAIL", "WHO_AM_I=0x{0:02X}".format(who))
+        for reg in (0x12, 0x10, 0x11):
+            b.writeto_mem(IMU, reg, bytes((0x44 if reg == 0x12 else 0x40,)))
+        time.sleep_ms(20)
         readings = []
         for _ in range(5):
-            data = bus.readfrom_mem(IMU_ADDRESS, IMU_OUT_TEMP_L, 14)
-            ax = _read_i16(data, 8)
-            ay = _read_i16(data, 10)
-            az = _read_i16(data, 12)
-            gx = _read_i16(data, 2)
-            gy = _read_i16(data, 4)
-            gz = _read_i16(data, 6)
-            readings.append((ax, ay, az, gx, gy, gz))
+            d = b.readfrom_mem(IMU, 0x20, 14)
+            readings.append(tuple(_i16(d, i) for i in (8, 10, 12, 2, 4, 6)))
             time.sleep_ms(20)
+        d = readings[-1]
+        print("[IMU] accel=({0},{1},{2}) gyro=({3},{4},{5})".format(*d))
+        if all(x == 0 for row in readings for x in row):
+            return _r("IMU", "FAIL", "all axes zero")
+        return _r("IMU", "PASS", "WHO_AM_I=0x{0:02X}, 5 reads".format(who))
+    except Exception as e:
+        return _r("IMU", "FAIL", e)
 
-        # Check if any axis changed between readings
-        all_same = all(r == readings[0] for r in readings)
-        if all_same:
-            print("  IMU readings: all identical across 5 reads")
-        else:
-            print("  IMU readings: varying across 5 reads (normal)")
-
-        # Check if all axes are zero (stuck sensor)
-        all_zero = all(v == 0 for r in readings for v in r)
-        if all_zero:
-            return _result("IMU verify", "FAIL", "all axes read zero - sensor stuck?")
-
-        return _result("IMU verify", "PASS",
-                       "5 reads, data varies" if not all_same else "5 reads, data stable")
-    except Exception as exc:
-        return _result("IMU verify", "SKIP", exc)
-
-
-# --- Battery ---
 
 def test_battery():
-    enable = None
+    en = None
     try:
-        enable = XiaoPin(BATTERY_ENABLE_PIN, Pin.OUT)
-        enable.value(1)
+        en = XiaoPin("bat_en", Pin.OUT)
+        en.value(1)
         time.sleep_ms(5)
-        adc = XiaoADC("vbat")
-        raw = adc.read()
-        uv = adc.read_uv()
-        millivolts = (uv / 1000.0) * BATTERY_DIVIDER
+        a = XiaoADC("vbat")
+        raw, uv = a.read(), a.read_uv()
         if raw <= 0 or uv <= 0:
-            return _result("Battery", "SKIP", "no battery voltage detected")
-        print("[BATTERY] raw={0}, adc={1}mV, estimated={2:.3f}V".format(
-            raw, uv // 1000, millivolts / 1000.0))
-        return _result("Battery", "PASS", "calibration divider=2:1")
-    except Exception as exc:
-        return _result("Battery", "SKIP", exc)
+            return _r("Battery", "SKIP", "no battery voltage")
+        return _r("Battery", "PASS", "raw={0}, estimated={1:.3f}V".format(
+            raw, uv * 2 / 1000000))
+    except Exception as e:
+        return _r("Battery", "SKIP", e)
     finally:
-        if enable is not None:
+        if en is not None:
             try:
-                enable.value(0)
+                en.value(0)
             except Exception:
                 pass
 
-
-# --- UART ---
 
 def test_uart():
-    uart = None
+    u = None
     try:
-        print("[UART] port=USART1 (PA9/PA10), baudrate=115200")
-        uart = XiaoUART("uart1", 115200, 6, 7)
-        payload = b"xiao-c5-uart-test\\n"
-        uart.write(payload)
-        received = uart.read(len(payload))
-        if received == payload:
-            return _result("UART", "PASS", "loopback")
-        return _result("UART", "SKIP",
-                       "connect PA9 to PA10 for loopback; received={0}".format(received))
-    except Exception as exc:
-        return _result("UART", "SKIP", exc)
+        u = XiaoUART("uart1", 115200, 6, 7)
+        data = b"xiao-c5-uart-test\n"
+        u.write(data)
+        got = u.read(len(data))
+        return _r("UART", "PASS" if got == data else "SKIP",
+                  "loopback" if got == data else "PA9-PA10 jumper required")
+    except Exception as e:
+        return _r("UART", "SKIP", e)
     finally:
-        if uart is not None:
-            try:
-                uart.deinit()
-            except Exception:
-                pass
+        _off(u)
 
 
-# --- FDCAN ---
+def test_rtc():
+    try:
+        from RTC import RTC
+        r = RTC()
+        r.set_datetime((2026, 7, 24, 12, 0, 0))
+        d = r.get_datetime()
+        return _r("RTC", "PASS" if d[:3] == (2026, 7, 24) else "FAIL", d)
+    except Exception as e:
+        return _r("RTC", "SKIP", e)
+
+
+def test_storage():
+    try:
+        import os
+        path = "/flash/_board_test_.txt"
+        data = b"xiao-c5-storage-ok"
+        with open(path, "wb") as f:
+            f.write(data)
+        with open(path, "rb") as f:
+            got = f.read()
+        os.remove(path)
+        return _r("Storage", "PASS" if got == data else "FAIL", "LittleFS")
+    except Exception as e:
+        return _r("Storage", "SKIP", e)
+
 
 def test_fdcan():
-    can = None
+    c = None
     try:
-        can = XiaoCAN("can0", bitrate=500000, data_bitrate=2000000,
-                      fd=True, loopback=True)
-        payload = bytes((0xC5, 0x01, 0x02, 0x03))
-        can.send(0x123, payload)
-        frame = can.recv(200)
-        if frame is None:
-            return _result("FDCAN", "FAIL", "loopback timeout")
-        state = can.status()
-        print("[FDCAN] nominal=500000, data=2000000, tx=1, rx=1, "
-              "id=0x{0:03X} data={1} status={2}".format(
-                  frame[0], frame[1], state))
-        return _result("FDCAN", "PASS", "loopback")
-    except Exception as exc:
-        return _result("FDCAN", "SKIP", exc)
+        c = _can()
+        c.send(0x123, b"C5")
+        f = c.recv(200)
+        return _r("FDCAN loopback", "PASS" if f and f[0] == 0x123 else "FAIL", f)
+    except Exception as e:
+        return _r("FDCAN loopback", "SKIP", e)
     finally:
-        if can is not None:
-            try:
-                can.deinit()
-            except Exception:
-                pass
+        _off(c)
 
 
 def test_fdcan_stress():
-    """CAN stress test: send 100 frames and check for loss."""
-    can = None
+    c = None
     try:
-        can = XiaoCAN("can0", bitrate=500000, data_bitrate=2000000,
-                      fd=True, loopback=True)
+        c = _can()
         lost = 0
         for i in range(100):
-            payload = bytes((i & 0xFF, 0xC5, 0x01, 0x02))
-            can.send(0x100 + i, payload)
-            frame = can.recv(100)
-            if frame is None:
+            c.send(0x100 + i, bytes((i & 255, 0xC5, 1, 2)))
+            if c.recv(100) is None:
                 lost += 1
-        print("[FDCAN stress] sent 100 frames, lost={0}".format(lost))
-        if lost == 0:
-            return _result("FDCAN stress", "PASS", "100/100 ok")
-        elif lost <= 5:
-            return _result("FDCAN stress", "PASS", "{0}/100 lost (acceptable)".format(lost))
-        else:
-            return _result("FDCAN stress", "FAIL", "{0}/100 lost".format(lost))
-    except Exception as exc:
-        return _result("FDCAN stress", "SKIP", exc)
+        return _r("FDCAN stress", "PASS" if lost <= 5 else "FAIL",
+                  "lost={0}/100".format(lost))
+    except Exception as e:
+        return _r("FDCAN stress", "SKIP", e)
     finally:
-        if can is not None:
-            try:
-                can.deinit()
-            except Exception:
-                pass
+        _off(c)
 
 
-# --- FDCAN regression tests (per PR#22 review fixes) ---
-
-def test_fdcan_multi_instance():
-    """Two CAN objects on the same device: verify creation and independent send."""
-    gc.collect()  # Defragment heap before allocating two CAN objects
-    can1 = None
-    can2 = None
+def test_fdcan_multi():
+    a = b = None
     try:
-        can1 = XiaoCAN("can0", bitrate=500000, data_bitrate=2000000,
-                       fd=True, loopback=True)
-        can2 = XiaoCAN("can0", bitrate=500000, data_bitrate=2000000,
-                       fd=True, loopback=True)
-
-        # Both objects can send without error
-        can1.send(0x111, b"AAAA")
-        can2.send(0x222, b"BBBB")
-
-        # First object must receive loopback frames (its filter was first)
-        f1 = can1.recv(200)
-        if f1 is None:
-            return _result("FDCAN multi-instance", "FAIL",
-                           "can1 did not receive loopback")
-
-        # Second object RX depends on Zephyr driver filter dispatch;
-        # STM32 FDCAN delivers to first matching filter only.
-        f2 = can2.recv(0)
-        note = "can2 RX ok" if f2 is not None else "can2 RX (driver limit)"
-
-        print("[FDCAN multi] can1 recv id=0x{0:03X}, {1}".format(f1[0], note))
-        return _result("FDCAN multi-instance", "PASS",
-                       "both created, both sent, per-instance queues ok")
-    except Exception as exc:
-        return _result("FDCAN multi-instance", "FAIL", exc)
+        gc.collect()
+        a, b = _can(), _can()
+        a.send(0x111, b"AAAA")
+        b.send(0x222, b"BBBB")
+        f = a.recv(200)
+        return _r("FDCAN multi-instance", "PASS" if f else "FAIL",
+                  "both created and sent")
+    except Exception as e:
+        return _r("FDCAN multi-instance", "FAIL", e)
     finally:
-        for c in (can1, can2):
-            if c is not None:
-                try:
-                    c.deinit()
-                except Exception:
-                    pass
+        _off(a)
+        _off(b)
 
 
-def test_fdcan_deinit_isolation():
-    """Deinit the second CAN instance must not break the first."""
-    gc.collect()  # Defragment heap
-    can1 = None
-    can2 = None
+def test_fdcan_deinit():
+    a = b = None
     try:
-        can1 = XiaoCAN("can0", bitrate=500000, data_bitrate=2000000,
-                       fd=True, loopback=True)
-        can2 = XiaoCAN("can0", bitrate=500000, data_bitrate=2000000,
-                       fd=True, loopback=True)
-
-        # Deinit the second instance (we_started=false, must not stop ctrl)
-        can2.deinit()
-        can2 = None
-
-        # First instance must still be functional
-        can1.send(0x333, b"CCCC")
-        frame = can1.recv(200)
-        if frame is None:
-            return _result("FDCAN deinit isolation", "FAIL",
-                           "can1 broken after can2 deinit")
-        return _result("FDCAN deinit isolation", "PASS",
-                       "can1 still alive after can2 deinit")
-    except Exception as exc:
-        return _result("FDCAN deinit isolation", "FAIL", exc)
+        gc.collect()
+        a, b = _can(), _can()
+        b.deinit()
+        b = None
+        a.send(0x333, b"CCCC")
+        return _r("FDCAN deinit isolation", "PASS" if a.recv(200) else "FAIL")
+    except Exception as e:
+        return _r("FDCAN deinit isolation", "FAIL", e)
     finally:
-        for c in (can1, can2):
-            if c is not None:
-                try:
-                    c.deinit()
-                except Exception:
-                    pass
+        _off(a)
+        _off(b)
 
 
-def test_fdcan_invalid_payload():
-    """CAN FD must reject payload lengths that DLC cannot encode exactly."""
-    can = None
+def test_fdcan_bad_payload():
+    c = None
     try:
-        can = XiaoCAN("can0", bitrate=500000, data_bitrate=2000000,
-                      fd=True, loopback=True)
-
-        invalid = [9, 10, 11, 13, 14, 15, 17, 21, 25, 33, 49, 63]
+        c = _can()
+        # Exhaustive two-way check over the whole length range: every legal
+        # FD length must send, every illegal length must raise ValueError.
+        # Same closed set as modcan.c: {0-8, 12, 16, 20, 24, 32, 48, 64}.
+        allowed = set(range(0, 9)) | {12, 16, 20, 24, 32, 48, 64}
         rejected = 0
-        for length in invalid:
+        accepted = 0
+        for size in range(0, 66):          # 0..64 covers legal+illegal; 65 overflows
             try:
-                can.send(0x100, bytes(length))
-                print("  BUG: {0} bytes accepted (should be rejected)".format(length))
+                c.send(0x100, bytes(size))
             except ValueError:
                 rejected += 1
-            except Exception as exc:
-                print("  {0} bytes: {1} ({2})".format(
-                    length, type(exc).__name__, exc))
-
-        if rejected == len(invalid):
-            return _result("FDCAN invalid payload", "PASS",
-                           "{0}/{0} rejected".format(rejected))
-        else:
-            return _result("FDCAN invalid payload", "FAIL",
-                           "{0}/{1} rejected".format(rejected, len(invalid)))
-    except Exception as exc:
-        return _result("FDCAN invalid payload", "SKIP", exc)
-    finally:
-        if can is not None:
-            try:
-                can.deinit()
-            except Exception:
-                pass
-
-
-def test_fdcan_variable_speed():
-    """Test CAN at multiple bitrates (loopback, re-init each speed)."""
-    speeds = [
-        (125000, None, False, "125k Classic"),
-        (250000, None, False, "250k Classic"),
-        (500000, None, False, "500k Classic"),
-        (500000, 2000000, True, "500k/2M FD"),
-        (500000, 4000000, True, "500k/4M FD"),
-    ]
-    all_ok = True
-    results = []
-
-    for nominal, data, fd, label in speeds:
-        can = None
-        try:
-            can = XiaoCAN("can0", bitrate=nominal,
-                          data_bitrate=data or 2000000, fd=fd,
-                          loopback=True)
-            can.send(0x100, b"TEST")
-            frame = can.recv(200)
-            if frame and frame[0] == 0x100:
-                results.append("{0}: OK".format(label))
-            else:
-                results.append("{0}: FAIL".format(label))
-                all_ok = False
-        except Exception as exc:
-            results.append("{0}: FAIL ({1})".format(label, exc))
-            all_ok = False
-        finally:
-            if can is not None:
-                try:
-                    can.deinit()
-                except Exception:
-                    pass
-        time.sleep_ms(50)
-
-    print("[FDCAN speeds] " + "; ".join(results))
-    return _result("FDCAN variable speed", "PASS" if all_ok else "FAIL")
-
-
-# --- GPIO input ---
-
-def test_gpio_input():
-    """Test GPIO input with pull-up on free pins D8-D11."""
-    pins = [8, 9, 10, 11]
-    ok = 0
-    failed = []
-    for p in pins:
-        try:
-            gpio = XiaoPin(p, Pin.IN, Pin.PULL_UP)
-            val = gpio.value()
-            # Floating pin with pull-up should read 1
-            if val == 1:
-                ok += 1
-            else:
-                failed.append("D{0}=0".format(p))
-        except Exception as exc:
-            failed.append("D{0}:{1}".format(p, exc))
-    if failed:
-        return _result("GPIO input", "FAIL",
-                       "{0}/{1} ok, {1}".format(ok, len(pins), ", ".join(failed)))
-    return _result("GPIO input", "PASS", "{0}/{0} ok".format(len(pins)))
-
-
-# --- RTC ---
-
-def test_rtc():
-    """Verify RTC is accessible and keeps time."""
-    try:
-        from RTC import RTC
-        rtc = RTC()
-        # Set a known datetime and read back
-        rtc.set_datetime((2026, 7, 24, 12, 0, 0))
-        dt = rtc.get_datetime()
-        if dt[0:3] == (2026, 7, 24):
-            return _result("RTC", "PASS",
-                           "{0:04d}-{1:02d}-{2:02d} {3:02d}:{4:02d}:{5:02d}".format(*dt))
-        return _result("RTC", "FAIL", "unexpected: {0}".format(dt))
-    except Exception as exc:
-        return _result("RTC", "SKIP", exc)
-
-
-# --- LittleFS storage ---
-
-def test_storage():
-    """Verify LittleFS on external NOR flash: write, read, delete."""
-    try:
-        import os
-        test_path = "/flash/_board_test_.txt"
-        test_data = b"xiao-c5-storage-ok"
-
-        # Write
-        with open(test_path, "wb") as f:
-            f.write(test_data)
-
-        # Read back
-        with open(test_path, "rb") as f:
-            read_back = f.read()
-
-        # Clean up
-        os.remove(test_path)
-
-        if read_back == test_data:
-            # Report free space
-            stat = os.statvfs("/flash")
-            free_kb = stat[0] * stat[3] // 1024
-            return _result("Storage", "PASS",
-                           "LittleFS ok, {0} KB free".format(free_kb))
-        return _result("Storage", "FAIL",
-                       "read mismatch: {0}".format(read_back))
-    except Exception as exc:
-        return _result("Storage", "SKIP", exc)
-
-
-# --- I2C1 header scan ---
-
-def test_i2c1_header():
-    """Scan the I2C1 header bus (D4/PB7 SDA, D5/PB6 SCL)."""
-    try:
-        bus = XiaoI2C("i2c0", "i2c1_sda", "i2c1_scl", 400000)
-        addresses = bus.scan()
-        if addresses:
-            print("[I2C1] header devices: {0}".format(
-                [hex(a) for a in addresses]))
-        else:
-            print("[I2C1] header: no devices (expected)")
-        return _result("I2C1 header", "PASS",
-                       "{0} device(s)".format(len(addresses)))
-    except Exception as exc:
-        return _result("I2C1 header", "SKIP", exc)
-
-
-# --- CAN external transceiver ---
-
-def test_fdcan_external():
-    """CAN external test: normal mode with transceiver (PB14 low).
-
-    Requires two boards with CANH-CANL and GND connected.  Run this test
-    on both boards within a few seconds of each other; each sends a unique
-    ping and waits for the peer's reply.
-    """
-    can = None
-    stb = None
-    try:
-        # Enable CAN transceiver (PB14 low = normal operation)
-        stb = Pin(("gpiob", 14), Pin.OUT)
-        stb.value(0)
-        time.sleep_ms(10)
-
-        can = XiaoCAN("can0", bitrate=500000, data_bitrate=2000000,
-                      fd=True)
-
-        # Send a ping and listen for a reply
-        my_id = 0x701
-        peer_id = 0x702
-        can.send(my_id, b"PING")
-
-        t0 = time.ticks_ms()
-        while time.ticks_diff(time.ticks_ms(), t0) < 1000:
-            frame = can.recv(100)
-            if frame is None:
                 continue
-            if frame[0] == peer_id:
-                return _result("FDCAN external", "PASS",
-                               "peer reply received, id=0x{0:03X}".format(frame[0]))
-            if frame[0] == my_id:
-                # Got our own ping from another board acting as echo
-                # Echo it back so the peer gets a reply
-                can.send(peer_id, b"PONG")
-
-        # No peer reply — this is expected if only one board is running
-        return _result("FDCAN external", "SKIP",
-                       "no peer reply (run on both boards)")
-    except Exception as exc:
-        return _result("FDCAN external", "SKIP", exc)
+            accepted += 1                   # send succeeded => must be a legal length
+            c.recv(50)                      # drain loopback echo (queue depth is 32)
+        n_illegal = 65 - len(allowed) + 1   # illegal within 0..64 (49) + overflow (65)
+        ok = rejected == n_illegal and accepted == len(allowed)
+        return _r("FDCAN invalid payload", "PASS" if ok else "FAIL",
+                  "rejected {0}/{1}, accepted {2}/{3}".format(
+                      rejected, n_illegal, accepted, len(allowed)))
+    except Exception as e:
+        return _r("FDCAN invalid payload", "SKIP", e)
     finally:
-        if can is not None:
-            try:
-                can.deinit()
-            except Exception:
-                pass
-        if stb is not None:
-            try:
-                stb.value(1)  # transceiver back to standby
-            except Exception:
-                pass
+        _off(c)
 
 
-# --- Test suites ---
+def test_fdcan_speeds():
+    ok = True
+    for nominal, data, fd in ((125000, 2000000, False),
+                              (250000, 2000000, False),
+                              (500000, 2000000, False),
+                              (500000, 2000000, True),
+                              (500000, 4000000, True)):
+        c = None
+        try:
+            c = _can(fd, data, nominal)
+            c.send(0x100, b"TEST")
+            f = c.recv(200)
+            ok = ok and bool(f and f[0] == 0x100)
+        except Exception as e:
+            print("[FDCAN speed] FAIL {0}/{1}: {2}".format(nominal, data, e))
+            ok = False
+        finally:
+            _off(c)
+        time.sleep_ms(50)
+    return _r("FDCAN variable speed", "PASS" if ok else "FAIL", "5 speeds")
 
-def test_quick():
-    """Quick smoke test."""
-    test_status()
-    test_led("blink")
-    test_adc_simple()
-    test_i2c()
-    test_imu()
+
+def test_fdcan_owner():
+    a = b = None
+    try:
+        gc.collect()
+        a, b = _can(), _can()
+        a.deinit()
+        a = None
+        b.send(0x444, b"alive")
+        return _r("FDCAN owner-deinit-first", "PASS" if b.recv(200) else "FAIL")
+    except Exception as e:
+        return _r("FDCAN owner-deinit-first", "FAIL", e)
+    finally:
+        _off(a)
+        _off(b)
+
+
+def test_fdcan_mismatch():
+    a = None
+    try:
+        a = _can()
+        rejected = False
+        try:
+            # Mismatched fd vs the running fd=True controller.
+            b = XiaoCAN("can0", bitrate=500000, data_bitrate=2000000,
+                        fd=False, loopback=True)
+            b.deinit()
+        except (ValueError, OSError):
+            rejected = True
+        # The mismatched construction must NOT have stopped the live
+        # controller: the first owner must still be able to send/recv.
+        # (Catches the can_cleanup-refcount-underflow regression, where a
+        # failed second CAN() decremented a refcount it never incremented
+        # and stopped the shared controller.)
+        a.send(0x555, b"alive")
+        alive = a.recv(200) is not None
+        return _r("FDCAN config mismatch", "PASS" if rejected and alive else "FAIL",
+                  "rejected={0}, owner-alive={1}".format(rejected, alive))
+    except Exception as e:
+        return _r("FDCAN config mismatch", "FAIL", e)
+    finally:
+        _off(a)
+
+
+def test_fdcan_ids():
+    c = None
+    try:
+        c = _can(False)
+        c.send(0x123, b"STD")
+        a = c.recv(200)
+        c.send(0x12345, b"EXT")
+        b = c.recv(200)
+        rejected = False
+        try:
+            c.send(0x20000000, b"X")
+        except ValueError:
+            rejected = True
+        ok = a and a[0] == 0x123 and b and b[0] == 0x12345 and rejected
+        return _r("FDCAN standard/extended ID", "PASS" if ok else "FAIL")
+    except Exception as e:
+        return _r("FDCAN standard/extended ID", "SKIP", e)
+    finally:
+        _off(c)
 
 
 def test_all():
-    """Full test suite."""
-    global _test_pass, _test_fail, _test_skip
-    _test_pass = _test_fail = _test_skip = 0
-
+    global _p, _f, _s
+    _p = _f = _s = 0
     print("=" * 50)
-    print("  XIAO STM32C5 Full Test Suite")
+    print(BOARD + " full test")
     print("=" * 50)
-
-    # Phase 1: Basic
-    print("\n-- Phase 1: Basic --")
-    test_status()
-    test_led("blink")
-    test_io_all()
-    test_gpio_input()
-
-    # Phase 2: ADC
-    print("\n-- Phase 2: ADC --")
+    test_led()
+    test_gpio()
     test_adc()
-
-    # Phase 3: I2C + IMU
-    print("\n-- Phase 3: I2C + IMU --")
     test_i2c()
-    test_i2c_stress()
     test_imu()
-    test_imu_verify()
-
-    # Phase 4: PWM
-    print("\n-- Phase 4: PWM --")
     test_pwm()
-    test_pwm_full()
-
-    # Phase 5: CAN
-    print("\n-- Phase 5: CAN --")
+    test_battery()
+    test_uart()
+    test_rtc()
+    test_storage()
     test_fdcan()
     test_fdcan_stress()
-    test_fdcan_multi_instance()
-    test_fdcan_deinit_isolation()
-    test_fdcan_invalid_payload()
-    test_fdcan_variable_speed()
-
-    # Phase 6: Power
-    print("\n-- Phase 6: Power --")
-    test_battery()
-
-    # Phase 7: UART (needs external wiring)
-    print("\n-- Phase 7: UART (needs PA9-PA10 jumper) --")
-    test_uart()
-
-    # Phase 8: Storage + RTC
-    print("\n-- Phase 8: Storage + RTC --")
-    test_storage()
-    test_rtc()
-
-    # Phase 9: CAN external — run manually, not in all
-    # print("\n-- Phase 9: CAN external (needs two boards) --")
-    # test_fdcan_external()
-
-    print("\n" + "=" * 50)
-    total = _test_pass + _test_fail + _test_skip
-    print("  Results: {0} PASS, {1} FAIL, {2} SKIP ({3} total)".format(
-        _test_pass, _test_fail, _test_skip, total))
+    test_fdcan_multi()
+    test_fdcan_deinit()
+    test_fdcan_bad_payload()
+    test_fdcan_speeds()
+    test_fdcan_owner()
+    test_fdcan_mismatch()
+    test_fdcan_ids()
     print("=" * 50)
-
-
-def _dispatch(line):
-    parts = line.strip().split()
-    if not parts:
-        return True
-    command = parts[0].lower()
-
-    if command == "help":
-        print_help()
-    elif command == "status":
-        test_status()
-    elif command == "all":
-        test_all()
-    elif command == "quick":
-        test_quick()
-    elif command == "uart":
-        test_uart()
-    elif command == "storage":
-        test_storage()
-    elif command == "rtc":
-        test_rtc()
-    elif command == "i2c1_header":
-        test_i2c1_header()
-    elif command == "fdcan_external":
-        test_fdcan_external()
-    elif command == "adc":
-        test_adc()
-    elif command == "adc_simple":
-        test_adc_simple()
-    elif command == "pwm":
-        test_pwm()
-    elif command == "pwm_full":
-        test_pwm_full()
-    elif command == "fdcan":
-        test_fdcan()
-    elif command == "fdcan_stress":
-        test_fdcan_stress()
-    elif command == "fdcan_multi":
-        test_fdcan_multi_instance()
-    elif command == "fdcan_deinit_iso":
-        test_fdcan_deinit_isolation()
-    elif command == "fdcan_bad_payload":
-        test_fdcan_invalid_payload()
-    elif command == "fdcan_speeds":
-        test_fdcan_variable_speed()
-    elif command == "i2c":
-        test_i2c()
-    elif command == "i2c_stress":
-        test_i2c_stress()
-    elif command == "imu":
-        test_imu()
-    elif command == "imu_verify":
-        test_imu_verify()
-    elif command == "battery":
-        test_battery()
-    elif command == "led":
-        test_led(parts[1].lower() if len(parts) > 1 else "blink")
-    elif command == "io":
-        pin = parts[1] if len(parts) > 1 else 0
-        count = int(parts[2]) if len(parts) > 2 else 2
-        test_io(pin, count)
-    elif command == "io_all":
-        test_io_all()
-    elif command == "gpio_in":
-        test_gpio_input()
-    elif command == "exit":
-        return False
-    else:
-        print("Unknown command: " + command)
-        print_help()
-    return True
+    print("Results: {0} PASS, {1} FAIL, {2} SKIP ({3} total)".format(
+        _p, _f, _s, _p + _f + _s))
+    return _f == 0
 
 
 def main():
-    print(BOARD_NAME + " test console")
-    print_help()
-    while True:
-        try:
-            sys.stdout.write("XIAO STM32C5 test> ")
-            line = sys.stdin.readline()
-            if not line:
-                print("")
-                break
-            line = line.strip()
-        except (EOFError, KeyboardInterrupt):
-            print("")
-            break
-        try:
-            if not _dispatch(line):
-                break
-        except Exception as exc:
-            print("[FAIL] command error: " + str(exc))
-    print("test console stopped")
+    return test_all()
 
 
 if __name__ == "__main__":

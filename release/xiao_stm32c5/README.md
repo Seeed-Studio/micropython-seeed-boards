@@ -21,17 +21,17 @@ The v1 REPL is USART1 at 115200 8-N-1: PA9 is TX, PA10 is RX, and GND is
 common. USB CDC REPL and 1200-bps automatic bootloader entry are optional
 enhancements, not v1 requirements.
 
-Copy `tests/xiao_stm32c5_full_test.py` to the board filesystem, then run:
+Copy `tests/xiao_stm32c5_full_test.py` to the board filesystem, then run the
+single full test entry point:
 
 ```python
 import xiao_stm32c5_full_test as test
 test.main()
 ```
 
-Commands are `help`, `status`, `all`, `uart`, `adc`, `pwm`, `fdcan`, `i2c`,
-`led on|off|blink`, `io <pin> [count]`, `imu`, `battery`, and `exit`.
-Every item reports `PASS`, `FAIL`, or `SKIP`; missing external hardware uses
-bounded waits and must not hang.
+The script runs LED, GPIO, ADC, PWM, I2C, IMU, battery, UART, RTC, LittleFS, and
+all 9 FDCAN regression tests. Every item reports `PASS`, `FAIL`, or `SKIP`;
+missing external hardware uses bounded waits and must not hang.
 
 ## Wiring
 

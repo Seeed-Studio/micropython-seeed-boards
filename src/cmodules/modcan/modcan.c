@@ -20,18 +20,59 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/util.h>
 
-#define CAN_RX_QUEUE_DEPTH 128
+#define CAN_RX_QUEUE_DEPTH 32  /* 32-frame RX queue: can_obj_t ~2.4KB fits the
+                                * fragmented 105KB heap. 128 frames made each
+                                * can_obj_t ~9.3KB and OOM'd on CAN() create
+                                * (MicroPython GC is non-moving, so fragmentation
+                                * from earlier tests left no 9.3KB run). */
+#define CAN_MAX_DEVICES 4   /* defensive cap; board has 1-2 CAN controllers */
 
 typedef struct _can_obj_t {
     mp_obj_base_t base;
     const struct device *dev;
-    int filter_id;
+    int filter_id;       /* std filter (flags=0) */
+    int filter_id_ext;   /* ext filter (flags=CAN_FILTER_IDE) */
     bool fd;
     bool started;
-    bool we_started;
     struct k_msgq rx_msgq;
     struct can_frame rx_frames[CAN_RX_QUEUE_DEPTH];
 } can_obj_t;
+
+/* Shared ownership record for one CAN controller. A slot is free iff dev==NULL.
+ * Invariant: dev != NULL  ==>  refcount >= 1 (one slot per live can_obj_t).
+ * Static storage is zero-initialized, so all slots start free. */
+typedef struct {
+    const struct device *dev;   /* lookup key; NULL = free slot */
+    uint16_t refcount;          /* number of live can_obj_t bound to this dev */
+    bool     fd;                /* owner config: FD mode */
+    uint32_t bitrate;           /* owner config: nominal bitrate */
+    uint32_t data_bitrate;      /* owner config: data bitrate (effective iff fd) */
+    bool     loopback;          /* owner config: loopback mode */
+} can_dev_state_t;
+
+static can_dev_state_t can_dev_states[CAN_MAX_DEVICES];
+
+/* Find existing state for dev, or NULL. Non-NULL <=> controller has a live owner. */
+static can_dev_state_t *can_dev_state_find(const struct device *dev)
+{
+    for (int i = 0; i < CAN_MAX_DEVICES; i++) {
+        if (can_dev_states[i].dev == dev) {
+            return &can_dev_states[i];
+        }
+    }
+    return NULL;
+}
+
+/* Find a free slot, or NULL if table full. Does NOT claim it (caller sets dev). */
+static can_dev_state_t *can_dev_state_alloc(void)
+{
+    for (int i = 0; i < CAN_MAX_DEVICES; i++) {
+        if (can_dev_states[i].dev == NULL) {
+            return &can_dev_states[i];
+        }
+    }
+    return NULL;
+}
 
 extern const mp_obj_type_t can_type;
 
@@ -50,20 +91,39 @@ static void can_raise_errno(const char *operation, int err)
 static void can_cleanup(can_obj_t *self)
 {
     if (self->dev == NULL) {
-        return;
+        return;   /* idempotent: deinit twice / GC after explicit deinit */
     }
 
+    /* Remove THIS object's RX filters (per-object, always safe). */
     if (self->filter_id >= 0) {
         can_remove_rx_filter(self->dev, self->filter_id);
         self->filter_id = -1;
     }
-
-    if (self->started && self->we_started) {
-        (void)can_stop(self->dev);
-        self->started = false;
+    if (self->filter_id_ext >= 0) {
+        can_remove_rx_filter(self->dev, self->filter_id_ext);
+        self->filter_id_ext = -1;
     }
 
-    self->dev = NULL;
+    /* Drop this object's reference to the shared controller. Stop the
+     * controller and free the slot ONLY when refcount reaches 0. */
+    can_dev_state_t *state = can_dev_state_find(self->dev);
+    if (state != NULL) {
+        if (state->refcount > 0) {          /* defensive: never underflow */
+            state->refcount--;
+        }
+        if (state->refcount == 0) {
+            (void)can_stop(self->dev);       /* harmless on already-stopped ctrl */
+            state->dev          = NULL;     /* free the slot for reuse */
+            state->refcount     = 0;
+            state->fd           = false;
+            state->bitrate      = 0;
+            state->data_bitrate = 0;
+            state->loopback     = false;
+        }
+    }
+
+    self->started = false;
+    self->dev = NULL;   /* must be last: lookup above relied on self->dev */
 }
 
 static mp_obj_t can_make_new(const mp_obj_type_t *type,
@@ -103,61 +163,129 @@ static mp_obj_t can_make_new(const mp_obj_type_t *type,
     can_obj_t *self = mp_obj_malloc_with_finaliser(can_obj_t, &can_type);
     self->dev = dev;
     self->filter_id = -1;
+    self->filter_id_ext = -1;
     self->fd = parsed[ARG_fd].u_bool;
     self->started = false;
-    self->we_started = false;
 
     k_msgq_init(&self->rx_msgq, (char *)self->rx_frames,
                 sizeof(struct can_frame), CAN_RX_QUEUE_DEPTH);
 
-    int err = can_set_bitrate(dev, (uint32_t)parsed[ARG_bitrate].u_int);
-    bool controller_running = (err == -EBUSY);
+    /* Shared device-state lookup: NULL means no live MP owner for this dev. */
+    can_dev_state_t *state = can_dev_state_find(dev);
+    const bool first_owner = (state == NULL);
 
-    if (err < 0 && !controller_running) {
-        can_cleanup(self);
-        can_raise_errno("set bitrate", err);
+    can_dev_state_t *new_slot = NULL;   /* used only by first_owner */
+    if (first_owner) {
+        new_slot = can_dev_state_alloc();
+        if (new_slot == NULL) {
+            can_cleanup(self);
+            mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("CAN: too many devices"));
+        }
+        /* Slot NOT claimed yet (new_slot->dev still NULL) on failure paths below. */
     }
 
-    can_mode_t mode = parsed[ARG_loopback].u_bool ? CAN_MODE_LOOPBACK : 0;
-    if (self->fd) {
-        mode |= CAN_MODE_FD;
-        if (!controller_running) {
+    if (first_owner) {
+        /* Controller has no live MP owner -> stopped. Apply the requested config.
+         * -EBUSY would mean an externally-started controller (anomalous on this
+         * board); raise rather than claim ownership with an unapplied config. */
+        int err = can_set_bitrate(dev, (uint32_t)parsed[ARG_bitrate].u_int);
+        if (err < 0) {
+            can_cleanup(self);
+            can_raise_errno("set bitrate", err);
+        }
+
+        can_mode_t mode = parsed[ARG_loopback].u_bool ? CAN_MODE_LOOPBACK : 0;
+        if (self->fd) {
+            mode |= CAN_MODE_FD;
             err = can_set_bitrate_data(dev, (uint32_t)parsed[ARG_data_bitrate].u_int);
             if (err < 0 && err != -EBUSY) {
                 can_cleanup(self);
                 can_raise_errno("set data bitrate", err);
             }
         }
-    }
 
-    if (!controller_running) {
         err = can_set_mode(dev, mode);
         if (err < 0 && err != -EBUSY) {
             can_cleanup(self);
             can_raise_errno("set mode", err);
         }
+
+        /* COMMIT (first owner): claim slot, record applied config, refcount 0->1.
+         * Failures below go through can_cleanup, which decrements 1->0, stops
+         * (harmless), and clears the slot. */
+        new_slot->dev          = dev;
+        new_slot->fd           = parsed[ARG_fd].u_bool;
+        new_slot->bitrate      = (uint32_t)parsed[ARG_bitrate].u_int;
+        new_slot->data_bitrate = (uint32_t)parsed[ARG_data_bitrate].u_int;
+        new_slot->loopback     = parsed[ARG_loopback].u_bool;
+        new_slot->refcount     = 1;
+        state = new_slot;
+    } else {
+        /* Controller already running under an existing owner. Validate the
+         * requested config matches; reject on mismatch WITHOUT touching the
+         * controller or refcount. */
+        const bool fd_match  = (state->fd == parsed[ARG_fd].u_bool);
+        const bool br_match  = (state->bitrate == (uint32_t)parsed[ARG_bitrate].u_int);
+        const bool lb_match  = (state->loopback == parsed[ARG_loopback].u_bool);
+        const bool dbr_match = !state->fd ||
+            (state->data_bitrate == (uint32_t)parsed[ARG_data_bitrate].u_int);
+        if (!fd_match || !br_match || !lb_match || !dbr_match) {
+            /* This object never claimed a reference (refcount increment and
+             * filter installation happen below, after this branch), so it must
+             * NOT go through can_cleanup(): can_cleanup() unconditionally
+             * decrements the shared refcount and stops the controller when it
+             * reaches 0, which would take down the live controller of the
+             * existing owner(s). Detach self by hand instead: remove any
+             * filters we may own (none yet at this point), then clear dev so
+             * our __del__/GC finalizer (can_cleanup, guarded by dev==NULL)
+             * becomes a no-op. The controller and refcount are left untouched. */
+            if (self->filter_id >= 0) {
+                can_remove_rx_filter(self->dev, self->filter_id);
+            }
+            if (self->filter_id_ext >= 0) {
+                can_remove_rx_filter(self->dev, self->filter_id_ext);
+            }
+            self->filter_id = -1;
+            self->filter_id_ext = -1;
+            self->started = false;
+            self->dev = NULL;   /* must be last: lookups above relied on it */
+            mp_raise_msg(&mp_type_ValueError,
+                MP_ERROR_TEXT("CAN config does not match running controller"));
+        }
+        /* COMMIT (subsequent owner): refcount N->N+1. Controller stays running. */
+        if (state->refcount != UINT16_MAX) {   /* defensive overflow cap */
+            state->refcount++;
+        }
+        /* set_bitrate/set_bitrate_data/set_mode/can_start intentionally skipped. */
     }
 
-    struct can_filter filter = {
-        .id = 0,
-        .mask = 0,
-        .flags = 0,
-    };
-    self->filter_id = can_add_rx_filter_msgq(dev, &self->rx_msgq, &filter);
+    /* Per-object RX filters (both paths). Zephyr's can_frame_matches_filter
+     * requires filter.flags & CAN_FILTER_IDE to match extended frames and
+     * !(CAN_FILTER_IDE) to match standard frames, so we install two
+     * all-match filters into the same msgq to receive both kinds. */
+    struct can_filter filter_std = { .id = 0, .mask = 0, .flags = 0 };
+    struct can_filter filter_ext = { .id = 0, .mask = 0, .flags = CAN_FILTER_IDE };
+    self->filter_id = can_add_rx_filter_msgq(dev, &self->rx_msgq, &filter_std);
     if (self->filter_id < 0) {
         can_cleanup(self);
-        can_raise_errno("add filter", self->filter_id);
+        can_raise_errno("add filter (std)", self->filter_id);
+    }
+    self->filter_id_ext = can_add_rx_filter_msgq(dev, &self->rx_msgq, &filter_ext);
+    if (self->filter_id_ext < 0) {
+        can_cleanup(self);
+        can_raise_errno("add filter (ext)", self->filter_id_ext);
     }
 
-    err = can_start(dev);
-    if (err == 0) {
-        self->we_started = true;
-    } else if (err == -EALREADY) {
-        self->we_started = false;
-    } else {
-        can_cleanup(self);
-        can_raise_errno("start", err);
+    /* Start the controller (first owner only). Subsequent owners attach to the
+     * already-running controller and must not call can_start. */
+    if (first_owner) {
+        int err = can_start(dev);
+        if (err != 0) {
+            can_cleanup(self);
+            can_raise_errno("start", err);
+        }
     }
+
     self->started = true;
     return MP_OBJ_FROM_PTR(self);
 }
@@ -188,10 +316,23 @@ static mp_obj_t can_send_fun(mp_obj_t self_in, mp_obj_t id_in, mp_obj_t data_in)
         }
     }
 
+    mp_int_t id = mp_obj_get_int(id_in);
+    if (id < 0 || id > (mp_int_t)CAN_EXT_ID_MASK) {
+        mp_raise_ValueError(MP_ERROR_TEXT("CAN id out of range (0..0x1FFFFFFF)"));
+    }
+
     struct can_frame frame = {0};
-    frame.id = mp_obj_get_int(id_in);
+    frame.id  = (uint32_t)id;
     frame.dlc = can_bytes_to_dlc((uint8_t)buffer.len);
-    frame.flags = self->fd ? (CAN_FRAME_FDF | CAN_FRAME_BRS) : 0;
+
+    uint8_t flags = 0;
+    if ((uint32_t)id > CAN_STD_ID_MASK) {   /* extended (29-bit) frame */
+        flags |= CAN_FRAME_IDE;
+    }
+    if (self->fd) {
+        flags |= CAN_FRAME_FDF | CAN_FRAME_BRS;
+    }
+    frame.flags = flags;
     memcpy(frame.data, buffer.buf, buffer.len);
 
     int err = can_send(self->dev, &frame, K_MSEC(100), NULL, NULL);

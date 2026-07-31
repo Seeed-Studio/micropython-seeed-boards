@@ -155,39 +155,51 @@ def test_fd_large_payload(can):
 
 
 def test_stress(can, n_frames=200):
-    """Stress test: rapid back-to-back frames."""
+    """Stress test: rapid back-to-back frames.
+
+    Drains the RX queue during the send loop to avoid overflowing the
+    32-frame msgq; a final drain after sending catches any late echoes.
+    """
     print("\n--- Test 4: Stress Test ({0} frames) ---".format(n_frames))
     base_id = 0x500
+    received_ids = set()
     t_start = time.ticks_ms()
 
-    # Send all frames as fast as possible
+    # Send all frames, draining RX inline to prevent msgq overflow
     for i in range(n_frames):
         data = bytes((i & 0xFF, (i >> 8) & 0xFF, 0xC5, 0xC5))
-        can.send(base_id + i, data)
+        try:
+            can.send(base_id + i, data)
+        except Exception:
+            pass  # TX queue full, continue
+        # Drain any received frames (non-blocking)
+        while True:
+            frame = can.recv(0)
+            if frame is None:
+                break
+            if base_id <= frame[0] < base_id + n_frames:
+                received_ids.add(frame[0])
         if i % 10 == 0:  # small delay every 10 frames
             time.sleep_ms(1)
 
     t_send = time.ticks_diff(time.ticks_ms(), t_start)
 
-    # Receive all frames
-    received = 0
-    lost = 0
-    t_recv_start = time.ticks_ms()
-    deadline = time.ticks_add(t_recv_start, 5000)  # 5s timeout
-
-    while received < n_frames and time.ticks_diff(time.ticks_ms(), t_recv_start) < 5000:
+    # Final drain: slave may still be echoing remaining frames
+    deadline = time.ticks_add(time.ticks_ms(), 3000)
+    while len(received_ids) < n_frames and time.ticks_diff(deadline, time.ticks_ms()) > 0:
         frame = can.recv(50)
         if frame is None:
             continue
         if base_id <= frame[0] < base_id + n_frames:
-            received += 1
+            received_ids.add(frame[0])
 
-    t_recv = time.ticks_diff(time.ticks_ms(), t_recv_start)
+    received = len(received_ids)
 
     if received == n_frames:
-        fps = n_frames * 1000 / max(t_recv, 1)
+        t_total = time.ticks_diff(time.ticks_ms(), t_start)
+        fps = n_frames * 1000 / max(t_total, 1)
         return _result("Stress {0}f".format(n_frames), True,
-                       "send={0}ms recv={1}ms {2:.0f} fps".format(t_send, t_recv, fps))
+                       "send={0}ms total={1}ms {2:.0f} fps".format(t_send, t_total, fps))
     else:
         pct = received * 100 // n_frames
         return _result("Stress {0}f".format(n_frames), pct >= 50,
@@ -195,28 +207,43 @@ def test_stress(can, n_frames=200):
 
 
 def test_burst(can, burst_size=30, n_bursts=3):
-    """Burst test: send burst of frames, then check all received."""
+    """Burst test: send burst of frames, then check all received.
+
+    Drains the RX queue during each burst to prevent msgq overflow.
+    """
     print("\n--- Test 5: Burst ({0}x{1} frames) ---".format(n_bursts, burst_size))
     base_id = 0x600
     total = burst_size * n_bursts
     sent = 0
+    received_ids = set()
 
     for burst in range(n_bursts):
         for j in range(burst_size):
             data = bytes((burst, j, 0xC5, 0x01))
-            can.send(base_id + sent, data)
+            try:
+                can.send(base_id + sent, data)
+            except Exception:
+                pass  # TX queue full, continue
             sent += 1
+            # Drain any received frames (non-blocking)
+            while True:
+                frame = can.recv(0)
+                if frame is None:
+                    break
+                if base_id <= frame[0] < base_id + total:
+                    received_ids.add(frame[0])
         time.sleep_ms(100)  # gap between bursts to let slave drain queue
 
-    received = 0
-    deadline = time.ticks_add(time.ticks_ms(), 3000)
-    while received < total and time.ticks_diff(time.ticks_ms(), deadline) < 3000:
+    # Final drain: catch any late echoes
+    deadline = time.ticks_add(time.ticks_ms(), 2000)
+    while len(received_ids) < total and time.ticks_diff(deadline, time.ticks_ms()) > 0:
         frame = can.recv(50)
         if frame is None:
             continue
         if base_id <= frame[0] < base_id + total:
-            received += 1
+            received_ids.add(frame[0])
 
+    received = len(received_ids)
     return _result("Burst", received == total,
                    "{0}/{1} ok".format(received, total))
 
@@ -242,7 +269,7 @@ def test_bidirectional(can, n_pairs=20):
 
 
 def test_variable_speed(can):
-    """Test at different bitrates (requires re-init)."""
+    """Test at different bitrates (single-board loopback self-test)."""
     print("\n--- Test 7: Variable Speed ---")
     speeds = [
         (125000, None, False, "125k Classic"),
@@ -254,6 +281,7 @@ def test_variable_speed(can):
     all_ok = True
 
     for nominal, data, fd, label in speeds:
+        # Release the main controller so can2 can (re)configure this speed.
         try:
             can.deinit()
         except Exception:
@@ -262,8 +290,7 @@ def test_variable_speed(can):
 
         try:
             can2 = CAN(_CAN_DEV, bitrate=nominal,
-                       data_bitrate=data or 2000000, fd=fd)
-            # Simple ping test
+                       data_bitrate=data or 2000000, fd=fd, loopback=True)
             can2.send(0x100, b"TEST")
             frame = can_recv_timeout(can2, 300)
             if frame and frame[0] == 0x100:
@@ -277,10 +304,8 @@ def test_variable_speed(can):
             all_ok = False
 
         time.sleep_ms(50)
-        # Re-init for subsequent tests
-        can = can_init()
 
-    return _result("Variable speed", all_ok), can
+    return _result("Variable speed", all_ok)
 
 
 # ============================================================
@@ -341,6 +366,13 @@ def slave():
         elif fid == 0x700:
             can.send(0x701, data)
 
+        # test_variable_speed (master) uses 0x100 "TEST" with loopback=True.
+        # STM32 FDCAN CAN_MODE_LOOPBACK is external (frame hits the bus + loops
+        # back internally), so slave sees these frames. Ignore them silently
+        # to keep the log clean.
+        elif fid == 0x100 and data == b"TEST":
+            pass
+
         # Print any unexpected frame
         else:
             print("  unexpected: id=0x{0:03X} data={1}".format(fid, _hex_dump(data)))
@@ -371,8 +403,8 @@ def master():
     test_burst(can, 30, 3)
     test_bidirectional(can, 20)
 
-    # Variable speed test (re-inits CAN, do last)
-    # test_variable_speed(can)
+    # Variable speed test (single-board loopback, do last)
+    test_variable_speed(can)
 
     can.deinit()
     print("\n" + "=" * 50)

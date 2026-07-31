@@ -314,12 +314,16 @@ with `sha256sum` before distributing a file.
 4. Connect a 3.3-V UART adapter to USART1: PA9 is TX, PA10 is RX, and GND is
    common. Use 115200 8-N-1. USB CDC REPL is not the v1 acceptance path.
 5. Copy or paste `example/xiao_stm32c5_full_test.py` into the MicroPython
-   filesystem and run:
+   filesystem and run the single full test entry point:
 
 ```python
 import xiao_stm32c5_full_test as test
 test.main()
 ```
+
+This full script combines the base-peripheral and FDCAN coverage. It runs
+LED, GPIO, ADC, PWM, I2C, IMU, battery, UART, RTC, LittleFS, and all 9 FDCAN
+regression tests; tests requiring external wiring report `SKIP` when absent.
 
 The user-side flash flow requires only the operating system's mass-storage
 copy operation; it does not require PlatformIO, ST-Link, J-Link, Python, or a
