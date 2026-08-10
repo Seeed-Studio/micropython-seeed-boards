@@ -34,6 +34,13 @@ jobs:
       trigger: ${{ github.event_name }}
     secrets: inherit
 
+  build_stm32c5:
+    name: Build Xiao STM32C5 Firmware
+    uses: ./.github/workflows/build_micropython_xiao_stm32c5.yml
+    with:
+      trigger: ${{ github.event_name }}
+    secrets: inherit
+
   build_ra4m1:
     name: Build Xiao RA4M1 Firmware
     uses: ./.github/workflows/build_micropython_xiao_ra4m1.yml
