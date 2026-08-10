@@ -19,11 +19,17 @@ Before building the MicroPython firmware, ensure you have the following:
       pip install pyelftools
       ```
     - Install the Zephyr SDK and set up the development environment by following the [Zephyr Getting Started Guide](https://docs.zephyrproject.org/latest/getting_started/index.html).
-    - For Nordic `nRF54` boards in this repository, use **Nordic nRF Connect SDK v3.3.0 or later** so that Zephyr and the Nordic SoC support stay aligned.
-    - Example command to initialize a Nordic SDK workspace for `nRF54` boards:
+    - Nordic `nRF54` boards are built with the **Nordic nRF Connect SDK (NCS)**, pinned per board so Zephyr and the Nordic SoC support stay aligned:
+      - **XIAO nRF54LM20A**: NCS **v3.3.0** (validated; see `.github/workflows/build_micropython_xiao_nrf54lm20a.yml`).
+      - **XIAO nRF54L15**: NCS **v3.0.2** (the revision its CI builds against; see `.github/workflows/build_micropython_xiao_nrf54l15.yml`).
+    - Example commands to initialize a Nordic SDK workspace:
       ```bash
-      # e.g. for XIAO nRF54L15 and XIAO nRF54LM20A
+      # XIAO nRF54LM20A
       west init -m https://github.com/nrfconnect/sdk-nrf --mr v3.3.0 zephyrproject
+      west update && west zephyr-export
+
+      # XIAO nRF54L15
+      west init -m https://github.com/nrfconnect/sdk-nrf --mr v3.0.2 zephyrproject
       west update && west zephyr-export
 
       # e.g. for XIAO MG24
