@@ -1,0 +1,67 @@
+name: Build MicroPython Firmware for Seeed XIAO STM32C5
+
+on:
+  workflow_call:
+    inputs:
+      trigger:
+        required: true
+        type: string
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build device-tree-compiler gcc-arm-none-eabi
+          python -m pip install --upgrade west jsonschema pyelftools requests PyYAML
+
+      - name: Set up Zephyr 4.4.0
+        run: |
+          west init -m https://github.com/zephyrproject-rtos/zephyr --mr v4.4.0 zephyrproject
+          cd zephyrproject
+          west update
+
+      - name: Build UF2
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyrproject/zephyr
+          ZEPHYR_TOOLCHAIN_VARIANT: gnuarmemb
+          GNUARMEMB_TOOLCHAIN_PATH: /usr
+        run: |
+          tools/xiao_stm32c5/build.sh
+
+      - name: Assemble release package
+        run: |
+          tools/xiao_stm32c5/package.sh "${GITHUB_SHA::12}"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiao-stm32c5-micropython
+          path: |
+            build/xiao_stm32c5/zephyr/zephyr.elf
+            build/xiao_stm32c5/zephyr/zephyr.bin
+            build/xiao_stm32c5/zephyr/zephyr.hex
+            build/xiao_stm32c5/zephyr/micropython-xiao-stm32c5.uf2
+            dist/*.tar.gz
+
+      - name: Upload package to GitHub Release
+        if: github.event_name == 'release'
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/*.tar.gz --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
