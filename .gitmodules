@@ -1,3 +1,7 @@
 [submodule "lib/micropython"]
 	path = lib/micropython
-	url = https://github.com/micropython/micropython.git
+	# Paullbuth-arch fork: carries the XIAO STM32C5 zephyr storage-recovery
+	# work (branch xiao-stm32c5-storage) on top of public upstream history.
+	# Switch back to https://github.com/micropython/micropython.git once the
+	# storage-recovery commits are merged upstream.
+	url = https://github.com/paullbuth-arch/micropython.git
