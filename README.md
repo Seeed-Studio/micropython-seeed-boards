@@ -222,7 +222,7 @@ Requirements:
   not sufficient for sysbuild.
 - A J-Link probe and J-Link Software v9.24 or newer. The validated J-Link
   device name is `nRF54LM20A_M33` because the 20B board uses nRF54LM20A/B
-  compatible silicon and the `cpuapp` qualifier is `nrf54lm20a`.
+  compatible silicon and the `cpuapp` qualifier is `nrf54lm20b`.
 
 Linux/macOS clean-environment setup and build:
 
@@ -243,12 +243,12 @@ cd ../micropython-seeed-boards
 export PROJECT_DIR="$PWD"
 west build "$PROJECT_DIR/lib/micropython/ports/zephyr" \
   --pristine \
-  --board xiao_nrf54lm20b/nrf54lm20a/cpuapp \
+  --board xiao_nrf54lm20b/nrf54lm20b/cpuapp \
   --sysbuild -- \
   -DBOARD_ROOT="$PROJECT_DIR" \
-  -DEXTRA_DTC_OVERLAY_FILE="$PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20a_cpuapp.overlay" \
-  -DPM_STATIC_YML_FILE="$PROJECT_DIR/boards/pm_static_xiao_nrf54lm20b_nrf54lm20a_cpuapp.yml" \
-  -DEXTRA_CONF_FILE="$PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20a_cpuapp.conf"
+  -DEXTRA_DTC_OVERLAY_FILE="$PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20b_cpuapp.overlay" \
+  -DPM_STATIC_YML_FILE="$PROJECT_DIR/boards/pm_static_xiao_nrf54lm20b_nrf54lm20b_cpuapp.yml" \
+  -DEXTRA_CONF_FILE="$PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20b_cpuapp.conf"
 ```
 
 Windows PowerShell clean-environment setup and build:
@@ -270,12 +270,12 @@ Set-Location ..\micropython-seeed-boards
 $env:PROJECT_DIR = (Get-Location).Path
 west build "$env:PROJECT_DIR\lib\micropython\ports\zephyr" `
   --pristine `
-  --board xiao_nrf54lm20b/nrf54lm20a/cpuapp `
+  --board xiao_nrf54lm20b/nrf54lm20b/cpuapp `
   --sysbuild -- `
   "-DBOARD_ROOT=$env:PROJECT_DIR" `
-  "-DEXTRA_DTC_OVERLAY_FILE=$env:PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20a_cpuapp.overlay" `
-  "-DPM_STATIC_YML_FILE=$env:PROJECT_DIR/boards/pm_static_xiao_nrf54lm20b_nrf54lm20a_cpuapp.yml" `
-  "-DEXTRA_CONF_FILE=$env:PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20a_cpuapp.conf"
+  "-DEXTRA_DTC_OVERLAY_FILE=$env:PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20b_cpuapp.overlay" `
+  "-DPM_STATIC_YML_FILE=$env:PROJECT_DIR/boards/pm_static_xiao_nrf54lm20b_nrf54lm20b_cpuapp.yml" `
+  "-DEXTRA_CONF_FILE=$env:PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20b_cpuapp.conf"
 ```
 
 The important build outputs are:

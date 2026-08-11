@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "xiao_nrf54lm20b_nrf54lm20a-pinctrl.dtsi"
+#include "xiao_nrf54lm20b_nrf54lm20b-pinctrl.dtsi"
 
 / {
 	leds {
