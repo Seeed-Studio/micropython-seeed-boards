@@ -8,6 +8,9 @@ CONFIG_SERIAL=y
 CONFIG_CONSOLE=y
 CONFIG_UART_CONSOLE=y
 
+# USB CDC ACM serial backend is configured from Kconfig.defconfig via
+# boards/common/usb/Kconfig.cdc_acm_serial.defconfig.
+
 # Enable GPIO
 CONFIG_GPIO=y
 
@@ -28,5 +31,5 @@ CONFIG_EXTERNAL_CACHE=y
 # Start SYSCOUNTER on driver init
 CONFIG_NRF_GRTC_START_SYSCOUNTER=y
 
-# MCUboot remains the SWD boot-chain baseline; USB serial recovery is not enabled in this release.
+# Enable MCUboot as default bootloader (for USB CDC ACM serial recovery)
 CONFIG_BOOTLOADER_MCUBOOT=y

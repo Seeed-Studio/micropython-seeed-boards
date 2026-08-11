@@ -11,10 +11,11 @@
 
 / {
 	compatible = "seeed,xiao_nrf54lm20b_nrf54lm20b-cpuapp";
-	model = "Seeed XIAO nRF54LM20B nRF54LM20B Application MCU";
+	model = "Seeed XIAO nRF54LM20B Application MCU";
 
 	chosen {
 		zephyr,code-partition = &slot0_partition;
 		zephyr,sram = &cpuapp_sram;
 	};
 };
+

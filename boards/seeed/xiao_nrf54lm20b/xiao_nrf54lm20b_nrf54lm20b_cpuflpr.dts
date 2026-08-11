@@ -9,7 +9,7 @@
 #include "xiao_nrf54lm20b_nrf54lm20b-common.dtsi"
 
 / {
-	model = "Seeed XIAO nRF54LM20B nRF54LM20B FLPR MCU";
+	model = "Seeed XIAO nRF54LM20B FLPR MCU";
 	compatible = "seeed,xiao_nrf54lm20b_nrf54lm20b-cpuflpr";
 
 	chosen {
