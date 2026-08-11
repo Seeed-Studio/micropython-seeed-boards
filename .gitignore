@@ -1,1 +1,6 @@
 build/
+
+# Python bytecode (flash-helper caches)
+__pycache__/
+*.pyc
+*.pyo
