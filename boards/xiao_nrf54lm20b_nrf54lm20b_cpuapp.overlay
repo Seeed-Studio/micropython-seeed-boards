@@ -22,6 +22,27 @@
     };
 };
 
+/* Remove the small internal-RRAM storage partition. */
+/delete-node/ &storage_partition;
+
+/* The board's user storage is the external 128-Mbit PY25Q128HA SPI NOR.
+ * Keep the MCUboot/app partitions in internal RRAM and expose the external
+ * flash as the MicroPython filesystem block device. */
+&py25q128 {
+	status = "okay";
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		storage_partition: partition@0 {
+			label = "storage";
+			reg = <0x0 0x1000000>;
+		};
+	};
+};
+
 / {
     fstab {
         compatible = "zephyr,fstab";

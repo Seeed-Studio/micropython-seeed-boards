@@ -24,10 +24,6 @@ IMU_BUS = "i2c1"           # I2C30, P0.08/P0.07.
 IMU_ADDRESS = 0x6A
 IMU_WHO_AM_I = 0x0F
 IMU_EXPECTED_ID = 0x6A
-# Zephyr's SENSOR_CHAN_GAUGE_VOLTAGE enum in the NCS 3.3.0/Zephyr 4.4
-# sensor API. zsensor currently exports generic channels but not gauge ones.
-PMIC_GAUGE_VOLTAGE_CHANNEL = 54
-
 _pass = 0
 _fail = 0
 _skip = 0
@@ -83,8 +79,8 @@ def print_help():
     print("  status               show board and pin information")
     print("  all                  run all bounded tests")
     print("  uart                 UART21 loopback; connect TX P1.8 to RX P1.9")
-    print("  adc                  sample ADC channels 0..7")
-    print("  pwm                  output 1kHz/50% on PWM20 channel 0 (P1.22)")
+    print("  adc                  sample ADC-capable pins D0-D4, D8-D10")
+    print("  pwm                  output 1kHz/50% on PWM20 ch0 (D8/P1.04; not SPI0)")
     print("  i2c                  scan I2C22 and IMU I2C30")
     print("  led on|off|blink     control RGB LED blue channel")
     print("  io <pin> [count]     toggle a header GPIO, for example io D0 3")
@@ -99,7 +95,7 @@ def print_help():
     print("  REPL: UART20 TX=P1.11, RX=P1.10, 115200 baud")
     print("  UART test: UART21 TX=P1.8, RX=P1.9; add a jumper for loopback")
     print("  I2C22: SDA=P1.3, SCL=P1.7; IMU I2C30: SDA=P0.8, SCL=P0.7")
-    print("  LED: blue=P1.23, red=P1.22, green=P1.24, active-high")
+    print("  LED: blue=P1.23, red=P1.22, green=P1.24, common-anode active-low")
     print("  PDM: CLK=P1.13, DIN=P1.14; requires a working microphone")
     print("  Battery: nPM1300 PMIC fuel-gauge; reports SKIP if driver unavailable")
 
@@ -113,7 +109,7 @@ def test_status():
         print("console: UART20, 115200 baud")
         print("header: D0-D15 mapped; D6/D7 are UART21 RX/TX")
         print("imu: I2C30, P0.08/P0.07, address 0x6A")
-        print("led: RGB P1.22/P1.23/P1.24, active-high")
+        print("led: RGB P1.22/P1.23/P1.24, common-anode active-low")
         return _result("status", "PASS")
     except Exception as exc:
         return _result("status", "FAIL", exc)
@@ -124,25 +120,25 @@ def test_led(action="blink"):
     try:
         led = XiaoPin("led_blue", Pin.OUT)
         if action == "on":
-            led.value(1)
-        elif action == "off":
             led.value(0)
+        elif action == "off":
+            led.value(1)
         elif action == "blink":
             for _ in range(3):
-                led.value(1)
-                time.sleep_ms(150)
                 led.value(0)
                 time.sleep_ms(150)
-            led.value(0)
+                led.value(1)
+                time.sleep_ms(150)
+            led.value(1)
         else:
             return _result("LED", "FAIL", "use on, off, or blink")
-        return _result("LED", "PASS", "blue LED active-high, action={0}".format(action))
+        return _result("LED", "PASS", "blue LED active-low, action={0}".format(action))
     except Exception as exc:
         return _result("LED", "FAIL", exc)
     finally:
         if led is not None and action != "on":
             try:
-                led.value(0)
+                led.value(1)
             except Exception:
                 pass
 
@@ -170,17 +166,25 @@ def test_io(pin_value=0, count=2):
 def test_adc():
     values = []
     try:
-        for channel in range(8):
-            adc = XiaoADC(channel)
+        adc_pins = (0, 1, 2, 3, 4, 8, 9, 10)
+        for pin in adc_pins:
+            adc = XiaoADC(pin)
             raw, uv = _read_adc(adc)
             if uv is None:
-                values.append("A{0} raw={1}".format(channel, raw))
+                values.append("D{0} raw={1}".format(pin, raw))
             else:
-                values.append("A{0} raw={1} {2}mV".format(channel, raw, uv // 1000))
+                values.append("D{0} raw={1} {2}mV".format(pin, raw, uv // 1000))
         print("[ADC] " + "; ".join(values))
-        return _result("ADC", "PASS", "8 channels sampled")
+        return _result("ADC", "PASS", "D0-D4, D8-D10 sampled")
     except Exception as exc:
         return _result("ADC", "FAIL", exc)
+    finally:
+        # D4/P1.03 is shared by ADC AIN7 and I2C22 SDA. Recreate I2C after
+        # ADC access so the peripheral pinctrl state is reapplied.
+        try:
+            _open_i2c("i2c0")
+        except Exception:
+            pass
 
 
 def test_pwm():
@@ -192,7 +196,7 @@ def test_pwm():
         except Exception:
             pwm.init(freq=1000, duty_ns=500000)
         time.sleep_ms(250)
-        return _result("PWM", "PASS", "PWM20 ch0, 1kHz, 50%; verify on LED/scope")
+        return _result("PWM", "PASS", "PWM20 ch0 on D8/P1.04, 1kHz, 50%; exclusive with SPI0")
     except Exception as exc:
         return _result("PWM", "FAIL", exc)
     finally:
@@ -208,6 +212,7 @@ def test_i2c():
     errors = []
     for bus_name in ("i2c0", IMU_BUS):
         try:
+            print("[I2C] scanning {0}...".format(bus_name))
             devices = _open_i2c(bus_name).scan()
             print("[I2C] {0}: {1}".format(bus_name, [hex(x) for x in devices]))
             found.extend(devices)
@@ -249,7 +254,7 @@ def test_battery():
 
         charger = zsensor.Sensor("pmic_charger")
         charger.measure()
-        voltage = charger.get_float(PMIC_GAUGE_VOLTAGE_CHANNEL)
+        voltage = charger.get_float(zsensor.GAUGE_VOLTAGE)
         if voltage <= 0:
             return _result("Battery", "SKIP", "nPM1300 reported no battery voltage")
         print("[BATTERY] source=nPM1300 fuel-gauge voltage={0:.3f}V".format(voltage))
@@ -264,7 +269,7 @@ def test_battery():
 
 def test_uart():
     try:
-        uart = XiaoUART(UART_PORT, UART_BAUD)
+        uart = XiaoUART(UART_PORT, UART_BAUD, 6, 7)
         payload = b"xiao20b-uart\n"
         uart.write(payload)
         time.sleep_ms(100)
@@ -355,17 +360,24 @@ def test_spi():
 
 def test_all():
     print("Running bounded tests; external loopback/BLE checks may SKIP.")
-    test_status()
-    test_led("blink")
-    test_adc()
-    test_pwm()
-    test_i2c()
-    test_imu()
-    test_spi()
-    test_pdm()
-    test_uart()
-    test_ble()
-    test_battery()
+    global _pass, _fail, _skip
+    _pass = _fail = _skip = 0
+    tests = (
+        ("status", lambda: test_status()),
+        ("LED", lambda: test_led("blink")),
+        ("I2C", test_i2c),
+        ("IMU", test_imu),
+        ("SPI", test_spi),
+        ("ADC", test_adc),
+        ("PWM", test_pwm),
+        ("PDM", test_pdm),
+        ("UART", test_uart),
+        ("BLE", test_ble),
+        ("battery", test_battery),
+    )
+    for name, test in tests:
+        print("[RUN] {0}".format(name))
+        test()
     print("Summary: PASS={0} FAIL={1} SKIP={2}".format(_pass, _fail, _skip))
 
 
@@ -414,9 +426,19 @@ def main():
     print("XIAO nRF54LM20B test console; type help for commands.")
     while True:
         try:
-            line = input("XIAO nRF54LM20B test> ")
+            print("XIAO nRF54LM20B test> ", end="")
+            line = sys.stdin.readline()
+            if not line:
+                break
         except (KeyboardInterrupt, EOFError):
             print("")
             break
         if not _dispatch(line.strip()):
             break
+
+
+# Thonny executes a file as __main__ rather than importing it.  Start the
+# interactive test console in that case, while retaining import + main() use
+# for REPL and automation.
+if __name__ == "__main__":
+    main()
