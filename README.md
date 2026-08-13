@@ -209,8 +209,9 @@ The compiled firmware is available at https://github.com/Seeed-Studio/micropytho
 
 ### XIAO nRF54LM20B (SWD baseline)
 
-The first XIAO nRF54LM20B release uses SWD programming. USB DFU/MCUboot
-serial recovery is a later enhancement and is not required for this build.
+The XIAO nRF54LM20B uses a pre-provisioned USB DFU boot chain.  The
+MicroPython build produces only a signed application for its fixed slot0
+partition; it does not rebuild or overwrite MCUboot.
 
 Requirements:
 
@@ -241,14 +242,17 @@ source zephyr/zephyr-env.sh
 cd ../micropython-seeed-boards
 
 export PROJECT_DIR="$PWD"
+# Path to the private key whose public part was provisioned into the device KMU.
+# Keep this key outside the repository.
+export MCUBOOT_SIGNING_KEY="/absolute/path/to/root-ed25519.pem"
 west build "$PROJECT_DIR/lib/micropython/ports/zephyr" \
   --pristine \
-  --board xiao_nrf54lm20b/nrf54lm20b/cpuapp \
-  --sysbuild -- \
+  --no-sysbuild \
+  --board xiao_nrf54lm20b/nrf54lm20b/cpuapp -- \
   -DBOARD_ROOT="$PROJECT_DIR" \
   -DEXTRA_DTC_OVERLAY_FILE="$PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20b_cpuapp.overlay" \
-  -DPM_STATIC_YML_FILE="$PROJECT_DIR/boards/pm_static_xiao_nrf54lm20b_nrf54lm20b_cpuapp.yml" \
-  -DEXTRA_CONF_FILE="$PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20b_cpuapp.conf"
+  -DEXTRA_CONF_FILE="$PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20b_cpuapp.conf" \
+  -DCONFIG_MCUBOOT_SIGNATURE_KEY_FILE:STRING=\"${MCUBOOT_SIGNING_KEY}\"
 ```
 
 Windows PowerShell clean-environment setup and build:
@@ -268,45 +272,49 @@ west zephyr-export
 Set-Location ..\micropython-seeed-boards
 
 $env:PROJECT_DIR = (Get-Location).Path
+# The corresponding public key is already provisioned in KMU; do not add this
+# private signing key to the repository.
+$env:MCUBOOT_SIGNING_KEY = "D:/path/to/root-ed25519.pem"
 west build "$env:PROJECT_DIR\lib\micropython\ports\zephyr" `
   --pristine `
-  --board xiao_nrf54lm20b/nrf54lm20b/cpuapp `
-  --sysbuild -- `
+  --no-sysbuild `
+  --board xiao_nrf54lm20b/nrf54lm20b/cpuapp -- `
   "-DBOARD_ROOT=$env:PROJECT_DIR" `
   "-DEXTRA_DTC_OVERLAY_FILE=$env:PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20b_cpuapp.overlay" `
-  "-DPM_STATIC_YML_FILE=$env:PROJECT_DIR/boards/pm_static_xiao_nrf54lm20b_nrf54lm20b_cpuapp.yml" `
-  "-DEXTRA_CONF_FILE=$env:PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20b_cpuapp.conf"
+  "-DEXTRA_CONF_FILE=$env:PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20b_cpuapp.conf" `
+  ('-DCONFIG_MCUBOOT_SIGNATURE_KEY_FILE:STRING="{0}"' -f $env:MCUBOOT_SIGNING_KEY)
 ```
 
 The important build outputs are:
 
 ```text
-build/xiao_nrf54lm20b/merged.hex
 build/xiao_nrf54lm20b/zephyr/zephyr.elf
+build/xiao_nrf54lm20b/zephyr/zephyr.signed.bin
 ```
 
-Flash `merged.hex` with J-Link Commander. No repository-specific flash
-script is required:
+For SWD provisioning, flash the prebuilt bootloader package separately, then
+program only the signed application at slot0.  For normal updates, upload
+`zephyr.signed.bin` through the pre-provisioned USB DFU loader.
 
 ```text
 JLinkExe -device nRF54LM20A_M33 -if SWD -speed 4000 -autoconnect 1
 J-Link> r
 J-Link> h
-J-Link> loadfile build/xiao_nrf54lm20b/merged.hex
+J-Link> loadfile build/xiao_nrf54lm20b/zephyr/zephyr.signed.hex
 J-Link> r
 J-Link> g
 J-Link> q
 ```
 
-After reset, connect to the board's UART20 console at 115200 baud
-(TX=P1.11, RX=P1.10). Copy the test script to the MicroPython filesystem
-with `mpremote` or another UART file-transfer tool, then run:
+After reset, the application exposes the MicroPython REPL over USB CDC ACM
+(VID:PID `2886:8013`). Copy the test script to the MicroPython filesystem
+with `mpremote`, then run:
 
 Linux/macOS example:
 
 ```bash
 python3 -m pip install mpremote
-mpremote connect /dev/ttyUSB0 fs cp example/xiao_nrf54lm20b_full_test.py :xiao_nrf54lm20b_full_test.py
+mpremote connect /dev/ttyACM0 fs cp example/xiao_nrf54lm20b_full_test.py :xiao_nrf54lm20b_full_test.py
 ```
 
 Windows PowerShell example:

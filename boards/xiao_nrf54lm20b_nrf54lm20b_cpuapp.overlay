@@ -1,9 +1,24 @@
 /* XIAO nRF54LM20B MicroPython application overlay. */
 
 / {
+    chosen {
+        zephyr,console = &cdc_acm_uart0;
+        zephyr,shell-uart = &cdc_acm_uart0;
+        zephyr,uart-mcumgr = &cdc_acm_uart0;
+        zephyr,bt-mon-uart = &cdc_acm_uart0;
+        zephyr,bt-c2h-uart = &cdc_acm_uart0;
+    };
+
     zephyr,user {
         io-channels = <&adc 0>, <&adc 1>, <&adc 2>, <&adc 3>,
                        <&adc 4>, <&adc 5>, <&adc 6>, <&adc 7>;
+    };
+};
+
+&zephyr_udc0 {
+    cdc_acm_uart0: cdc_acm_uart0 {
+        compatible = "zephyr,cdc-acm-uart";
+        label = "XIAO nRF54LM20B USB CDC ACM";
     };
 };
 

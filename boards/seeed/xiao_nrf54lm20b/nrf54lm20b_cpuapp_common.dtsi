@@ -18,11 +18,11 @@
 	};
 
 	chosen {
-		zephyr,console = &cdc_acm_uart;
-		zephyr,shell-uart = &cdc_acm_uart;
-		zephyr,uart-mcumgr = &cdc_acm_uart;
-		zephyr,bt-mon-uart = &cdc_acm_uart;
-		zephyr,bt-c2h-uart = &cdc_acm_uart;
+		zephyr,console = &uart20;
+		zephyr,shell-uart = &uart20;
+		zephyr,uart-mcumgr = &uart20;
+		zephyr,bt-mon-uart = &uart20;
+		zephyr,bt-c2h-uart = &uart20;
 		zephyr,flash-controller = &rram_controller;
 		zephyr,flash = &cpuapp_rram;
 		zephyr,ieee802154 = &ieee802154;
@@ -150,10 +150,6 @@
 
 zephyr_udc0: &usbhs {
 	status = "okay";
-
-	cdc_acm_uart: cdc_acm_uart {
-		compatible = "zephyr,cdc-acm-uart";
-	};
 };
 
 /* SPI Flash: PY25Q128HA (128Mbit) — upgraded from PY25Q64HA (64Mbit)

@@ -8,7 +8,9 @@ arch: arm
 toolchain:
   - gnuarmemb
   - zephyr
-sysbuild: true
+# The production USB boot chain is precompiled and provisioned separately.
+# Build only the signed slot0 application; do not regenerate MCUboot.
+sysbuild: false
 ram: 512
 flash: 449
 supported:
