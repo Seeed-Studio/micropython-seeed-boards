@@ -1,6 +1,4 @@
 build/
-
-# Python bytecode (flash-helper caches)
+dist/
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]

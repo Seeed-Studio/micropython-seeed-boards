@@ -1,0 +1,99 @@
+diff --git a/ports/zephyr/CMakeLists.txt b/ports/zephyr/CMakeLists.txt
+index cf35ba73da27813275b24a5f27d54c6ae2e5d807..fe47e6b7fa28aaa626b298880b83029d119641ec 100644
+--- a/ports/zephyr/CMakeLists.txt
++++ b/ports/zephyr/CMakeLists.txt
+@@ -61,6 +61,7 @@ set(MICROPY_SOURCE_PORT
+     mpthreadport.c
+ )
+ list(TRANSFORM MICROPY_SOURCE_PORT PREPEND ${MICROPY_PORT_DIR}/)
++include(${MICROPY_DIR}/py/usermod.cmake)
+ 
+ set(MICROPY_SOURCE_SHARED
+     libc/printf.c
+@@ -120,6 +121,7 @@ set(MICROPY_SOURCE_QSTR
+     ${MICROPY_SOURCE_DRIVERS}
+     ${MICROPY_SOURCE_LIB}
+     ${MICROPY_SOURCE_PORT}
++    ${MICROPY_SOURCE_USERMOD}
+ )
+ 
+ zephyr_get_include_directories_for_lang(C includes)
+@@ -135,6 +137,7 @@ zephyr_library_include_directories(
+     ${MICROPY_INC_CORE}
+     ${MICROPY_PORT_DIR}
+     ${CMAKE_CURRENT_BINARY_DIR}
++    ${MICROPY_INC_USERMOD}
+ )
+ 
+ zephyr_library_compile_options(
+diff --git a/ports/zephyr/modmachine.c b/ports/zephyr/modmachine.c
+index 89ad12f185daa71e1c697583a78b8c126b15dbfa..3999465ba257968dbc84a117006daf50cd8a1f4c 100644
+--- a/ports/zephyr/modmachine.c
++++ b/ports/zephyr/modmachine.c
+@@ -34,6 +34,14 @@
+ 
+ #include "modmachine.h"
+ 
++#if defined(CONFIG_BOARD_XIAO_NRF54LM20B)
++extern const mp_obj_type_t rtc_type;
++#define MICROPY_PY_MACHINE_RTC_ENTRY \
++    { MP_ROM_QSTR(MP_QSTR_RTC), MP_ROM_PTR(&rtc_type) },
++#else
++#define MICROPY_PY_MACHINE_RTC_ENTRY
++#endif
++
+ #ifdef CONFIG_REBOOT
+ #define MICROPY_PY_MACHINE_RESET_ENTRY { MP_ROM_QSTR(MP_QSTR_reset), MP_ROM_PTR(&machine_reset_obj) },
+ #else
+@@ -42,6 +50,7 @@
+ 
+ #define MICROPY_PY_MACHINE_EXTRA_GLOBALS \
+     MICROPY_PY_MACHINE_RESET_ENTRY \
++    MICROPY_PY_MACHINE_RTC_ENTRY \
+     { MP_ROM_QSTR(MP_QSTR_reset_cause), MP_ROM_PTR(&machine_reset_cause_obj) }, \
+     { MP_ROM_QSTR(MP_QSTR_Pin), MP_ROM_PTR(&machine_pin_type) }, \
+     { MP_ROM_QSTR(MP_QSTR_Timer), MP_ROM_PTR(&machine_timer_type) }, \
+diff --git a/ports/zephyr/modtime.c b/ports/zephyr/modtime.c
+index b042095ed9cc957120af448f09099fabf18913ab..4f5db937d1e8d660df9d85bf402a1d17224fdaa5 100644
+--- a/ports/zephyr/modtime.c
++++ b/ports/zephyr/modtime.c
+@@ -28,6 +28,7 @@
+ #include <zephyr/kernel.h>
+ 
+ #include "py/obj.h"
++#include "shared/timeutils/timeutils.h"
+ 
+ static mp_obj_t mp_time_time_get(void) {
+     /* The absence of FP support is deliberate. The Zephyr port uses
+@@ -36,3 +37,7 @@ static mp_obj_t mp_time_time_get(void) {
+      */
+     return mp_obj_new_int(k_uptime_get() / 1000);
+ }
++
++static void mp_time_localtime_get(timeutils_struct_time_t *tm) {
++    timeutils_seconds_since_epoch_to_struct_time(k_uptime_get() / 1000, tm);
++}
+diff --git a/ports/zephyr/modzsensor.c b/ports/zephyr/modzsensor.c
+index c3a8b6d55506d483f3df3fb407925abab2460d73..175c8e3bcd24a32a1724f5499cd64ac83eb4ebda 100644
+--- a/ports/zephyr/modzsensor.c
++++ b/ports/zephyr/modzsensor.c
+@@ -212,6 +212,7 @@ static const mp_rom_map_elem_t mp_module_zsensor_globals_table[] = {
+     C(VOC),
+     C(GAS_RES),
+     C(VOLTAGE),
++    C(GAUGE_VOLTAGE),
+ #undef C
+ #define C(name) { MP_ROM_QSTR(MP_QSTR_ATTR_##name), MP_ROM_INT(SENSOR_ATTR_##name) }
+     C(SAMPLING_FREQUENCY),
+diff --git a/ports/zephyr/mpconfigport.h b/ports/zephyr/mpconfigport.h
+index 56a442c26972e88e77426da4138dde625a23638a..35b4decc1709970cdfcc37d28bf9044b5f886c49 100644
+--- a/ports/zephyr/mpconfigport.h
++++ b/ports/zephyr/mpconfigport.h
+@@ -101,6 +101,7 @@
+ #define MICROPY_PY_HASHLIB          (1)
+ #define MICROPY_PY_OS               (1)
+ #define MICROPY_PY_TIME_TIME_TIME_NS (1)
++#define MICROPY_PY_TIME_GMTIME_LOCALTIME_MKTIME (1)
+ #define MICROPY_PY_TIME_INCLUDEFILE "ports/zephyr/modtime.c"
+ #define MICROPY_PY_ZEPHYR           (1)
+ #define MICROPY_PY_ZSENSOR          (1)

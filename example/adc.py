@@ -1,17 +1,22 @@
+import sys
 import time
-from boards.xiao import XiaoPin, XiaoADC, XiaoPWM 
+from boards.xiao import XiaoPin, XiaoADC, XiaoPWM
 
 adc = 0    #D0
-pwm = 1    #D1
+pwm_num = 0 if "stm32c5" in sys.implementation._machine.lower() else 1
+adc_obj = None
+pwm_obj = None
+pwm_ready = False
 
 try:
     # Initialize ADC for potentiometer
-    adc = XiaoADC(adc)            
+    adc_obj = XiaoADC(adc)
     # Initialize PWM for LED control
-    pwm = XiaoPWM(pwm)     
-    FREQ = 1000                     
-    PERIOD_NS = 1000000             
-    pwm.init(freq=FREQ)  
+    pwm_obj = XiaoPWM(pwm_num)
+    FREQ = 1000
+    PERIOD_NS = 1000000
+    pwm_obj.init(freq=FREQ, duty_u16=0)
+    pwm_ready = True
     # Potentiometer parameters
     MIN_VOLTAGE = 0.0      
     MAX_VOLTAGE = 3.3     
@@ -19,7 +24,7 @@ try:
     last_duty = -1 
     while True:
         # Read ADC voltage value
-        voltage = adc.read_u16() / 10000  
+        voltage = adc_obj.read_u16() / 10000
         
         # Ensure voltage is within valid range
         if voltage < MIN_VOLTAGE:
@@ -42,7 +47,7 @@ try:
             duty_ns = 960000
             
         # Set PWM duty cycle
-        pwm.duty_ns(duty_ns)
+        pwm_obj.duty_ns(duty_ns)
         
         # Print current status
         print("Voltage: {:.2f}V, Duty Cycle: {:.1f}%".format(voltage, duty_percent * 100))
@@ -57,7 +62,11 @@ except KeyboardInterrupt:
 except Exception as e:
     print("\nError occurred: %s" % {e})
 finally:
-    pwm.deinit()
+    if pwm_ready:
+        try:
+            pwm_obj.deinit()
+        except Exception:
+            pass
     
 
   
