@@ -48,12 +48,12 @@ jobs:
       - name: Install Zephyr SDK 0.17.0
         run: |
           wget -q https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.0/zephyr-sdk-0.17.0_linux-x86_64.tar.xz
-          mkdir -p "$HOME/zephyr-sdk"
-          tar -xf zephyr-sdk-0.17.0_linux-x86_64.tar.xz -C "$HOME/zephyr-sdk"
+          mkdir -p "$RUNNER_TEMP/zephyr-sdk"
+          tar -xf zephyr-sdk-0.17.0_linux-x86_64.tar.xz -C "$RUNNER_TEMP/zephyr-sdk"
           # The nRF54LM20B application is ARM-only.  Installing every SDK
           # target plus host tools is unnecessary and exits non-zero on the
           # hosted runner; install only the compiler this job actually uses.
-          "$HOME/zephyr-sdk/zephyr-sdk-0.17.0/setup.sh" -t arm-zephyr-eabi
+          "$RUNNER_TEMP/zephyr-sdk/zephyr-sdk-0.17.0/setup.sh" -t arm-zephyr-eabi
 
       - name: Apply pinned MicroPython compatibility patch
         run: ./tools/apply_micropython_patches.sh
