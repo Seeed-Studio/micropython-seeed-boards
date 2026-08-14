@@ -213,6 +213,140 @@ The compiled firmware is available at https://github.com/Seeed-Studio/micropytho
       chmod +x xiao_ra4m1_flash.sh && ./xiao_ra4m1_flash.sh
       ```
 
+### XIAO nRF54LM20B (SWD baseline)
+
+The XIAO nRF54LM20B uses a pre-provisioned USB DFU boot chain.  The
+MicroPython build produces only a signed application for its fixed slot0
+partition; it does not rebuild or overwrite MCUboot.
+
+Requirements:
+
+- Python 3.10 or newer, CMake 3.20 or newer, Ninja, DTC and `west`.
+- Nordic nRF Connect SDK v3.3.0 or newer.
+- Zephyr SDK 0.17.0, including both `arm-zephyr-eabi` and
+  `riscv64-zephyr-elf` toolchains. The RISC-V toolchain is needed for the
+  nRF54LM20 FLPR child image; a host-only `arm-none-eabi-gcc` installation is
+  not sufficient for sysbuild.
+- A J-Link probe and J-Link Software v9.24 or newer. The validated J-Link
+  device name is `nRF54LM20A_M33` because the 20B board uses nRF54LM20A/B
+  compatible silicon and the `cpuapp` qualifier is `nrf54lm20b`.
+
+Linux/macOS clean-environment setup and build:
+
+```bash
+python3 -m pip install --user west
+git clone --recurse-submodules https://github.com/Seeed-Studio/micropython-seeed-boards.git
+cd micropython-seeed-boards
+git submodule update --init --recursive
+
+cd ..
+west init -m https://github.com/nrfconnect/sdk-nrf --mr v3.3.0 ncs-workspace
+cd ncs-workspace
+west update
+west zephyr-export
+source zephyr/zephyr-env.sh
+cd ../micropython-seeed-boards
+
+export PROJECT_DIR="$PWD"
+# Path to the private key whose public part was provisioned into the device KMU.
+# Keep this key outside the repository.
+export MCUBOOT_SIGNING_KEY="/absolute/path/to/root-ed25519.pem"
+west build "$PROJECT_DIR/lib/micropython/ports/zephyr" \
+  --pristine \
+  --no-sysbuild \
+  --board xiao_nrf54lm20b/nrf54lm20b/cpuapp -- \
+  -DBOARD_ROOT="$PROJECT_DIR" \
+  -DEXTRA_DTC_OVERLAY_FILE="$PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20b_cpuapp.overlay" \
+  -DEXTRA_CONF_FILE="$PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20b_cpuapp.conf" \
+  -DCONFIG_MCUBOOT_SIGNATURE_KEY_FILE:STRING=\"${MCUBOOT_SIGNING_KEY}\"
+```
+
+Windows PowerShell clean-environment setup and build:
+
+```powershell
+py -m pip install west
+git clone --recurse-submodules https://github.com/Seeed-Studio/micropython-seeed-boards.git
+Set-Location micropython-seeed-boards
+git submodule update --init --recursive
+
+Set-Location ..
+west init -m https://github.com/nrfconnect/sdk-nrf --mr v3.3.0 ncs-workspace
+Set-Location ncs-workspace
+west update
+west zephyr-export
+.\zephyr\zephyr-env.cmd
+Set-Location ..\micropython-seeed-boards
+
+$env:PROJECT_DIR = (Get-Location).Path
+# The corresponding public key is already provisioned in KMU; do not add this
+# private signing key to the repository.
+$env:MCUBOOT_SIGNING_KEY = "D:/path/to/root-ed25519.pem"
+west build "$env:PROJECT_DIR\lib\micropython\ports\zephyr" `
+  --pristine `
+  --no-sysbuild `
+  --board xiao_nrf54lm20b/nrf54lm20b/cpuapp -- `
+  "-DBOARD_ROOT=$env:PROJECT_DIR" `
+  "-DEXTRA_DTC_OVERLAY_FILE=$env:PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20b_cpuapp.overlay" `
+  "-DEXTRA_CONF_FILE=$env:PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20b_cpuapp.conf" `
+  ('-DCONFIG_MCUBOOT_SIGNATURE_KEY_FILE:STRING="{0}"' -f $env:MCUBOOT_SIGNING_KEY)
+```
+
+The important build outputs are:
+
+```text
+build/xiao_nrf54lm20b/zephyr/zephyr.elf
+build/xiao_nrf54lm20b/zephyr/zephyr.signed.bin
+```
+
+For SWD provisioning, flash the prebuilt bootloader package separately, then
+program only the signed application at slot0.  For normal updates, upload
+`zephyr.signed.bin` through the pre-provisioned USB DFU loader.
+
+```text
+JLinkExe -device nRF54LM20A_M33 -if SWD -speed 4000 -autoconnect 1
+J-Link> r
+J-Link> h
+J-Link> loadfile build/xiao_nrf54lm20b/zephyr/zephyr.signed.hex
+J-Link> r
+J-Link> g
+J-Link> q
+```
+
+After reset, the application exposes the MicroPython REPL over USB CDC ACM
+(VID:PID `2886:8013`). Copy the test script to the MicroPython filesystem
+with `mpremote`, then run:
+
+Linux/macOS example:
+
+```bash
+python3 -m pip install mpremote
+mpremote connect /dev/ttyACM0 fs cp example/xiao_nrf54lm20b_full_test.py :xiao_nrf54lm20b_full_test.py
+```
+
+Windows PowerShell example:
+
+```powershell
+py -m pip install mpremote
+mpremote connect COM7 fs cp example\xiao_nrf54lm20b_full_test.py :xiao_nrf54lm20b_full_test.py
+```
+
+```python
+import xiao_nrf54lm20b_full_test as test
+test.main()
+```
+
+The test console supports `help`, `status`, `all`, `uart`, `adc`, `pwm`,
+`i2c`, `led`, `io`, `imu`, `battery`, `ble`, `pdm`, `spi`, and `exit`.
+UART21 loopback requires a jumper from P1.8 to P1.9. BLE visibility requires
+a phone or another BLE scanner. The battery test reads the nPM1300 fuel-gauge
+sensor when the charger device is available. It reports `SKIP` if the sensor
+driver is unavailable; ADC7 must not be treated as VBAT without a board-level
+mapping.
+
+Formal firmware archives are intentionally not produced in this bring-up
+phase. USB DFU, signed application packages, rollback and release packaging
+are follow-up work.
+
 ## Running MicroPython by Thonny IDE
 
 1. **Install Thonny IDE**:

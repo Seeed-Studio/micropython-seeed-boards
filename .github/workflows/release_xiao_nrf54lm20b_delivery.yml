@@ -1,0 +1,143 @@
+name: Release XIAO nRF54LM20B delivery package
+
+on:
+  workflow_dispatch:
+
+# This workflow intentionally does not run on pull requests. It handles the
+# production MCUboot signing key and is restricted to the protected master
+# branch below.
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clean disk space
+        run: |
+          sudo apt clean
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache
+          docker system prune -f
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git cmake ninja-build gperf ccache \
+            dfu-util device-tree-compiler python3-dev python3-pip python3-setuptools \
+            python3-tk python3-wheel xz-utils file libpython3-dev libffi-dev wget
+          pip3 install west imgtool
+
+      - name: Set up NCS v3.3.0
+        run: |
+          west init -m https://github.com/nrfconnect/sdk-nrf --mr v3.3.0 ncs
+          cd ncs
+          west update
+          west zephyr-export
+          pip3 install -r zephyr/scripts/requirements.txt
+
+      - name: Install Zephyr SDK 0.17.0
+        run: |
+          wget -q https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.0/zephyr-sdk-0.17.0_linux-x86_64.tar.xz
+          mkdir -p "$RUNNER_TEMP/zephyr-sdk"
+          tar -xf zephyr-sdk-0.17.0_linux-x86_64.tar.xz -C "$RUNNER_TEMP/zephyr-sdk"
+          "$RUNNER_TEMP/zephyr-sdk/zephyr-sdk-0.17.0/setup.sh" -t arm-zephyr-eabi
+
+      - name: Apply pinned MicroPython compatibility patch
+        run: ./tools/apply_micropython_patches.sh
+
+      - name: Write production signing key
+        env:
+          MCUBOOT_SIGNING_KEY: ${{ secrets.NRF54LM20B_MCUBOOT_SIGNING_KEY }}
+        run: |
+          test -n "$MCUBOOT_SIGNING_KEY" || {
+            echo 'Missing Actions secret NRF54LM20B_MCUBOOT_SIGNING_KEY.' >&2
+            exit 1
+          }
+          umask 077
+          printf '%s' "$MCUBOOT_SIGNING_KEY" > "$RUNNER_TEMP/nrf54lm20b-root-ed25519.pem"
+
+      - name: Build production-signed XIAO nRF54LM20B application
+        run: |
+          source ncs/zephyr/zephyr-env.sh
+          export PROJECT_DIR="$GITHUB_WORKSPACE"
+          printf '%s\n' \
+            'CONFIG_MCUBOOT_SIGNATURE_KEY_FILE="'"$RUNNER_TEMP"'/nrf54lm20b-root-ed25519.pem"' \
+            > "$RUNNER_TEMP/nrf54lm20b-production-signing.conf"
+          west build "$PROJECT_DIR/lib/micropython/ports/zephyr" \
+            --build-dir "$PROJECT_DIR/build_nrf54lm20b" \
+            --pristine \
+            --no-sysbuild \
+            --board xiao_nrf54lm20b/nrf54lm20b/cpuapp -- \
+            -DBOARD_ROOT="$PROJECT_DIR" \
+            -DEXTRA_DTC_OVERLAY_FILE="$PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20b_cpuapp.overlay" \
+            -DEXTRA_CONF_FILE="$PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20b_cpuapp.conf;$RUNNER_TEMP/nrf54lm20b-production-signing.conf"
+        env:
+          ZEPHYR_SDK_INSTALL_DIR: ${{ runner.temp }}/zephyr-sdk/zephyr-sdk-0.17.0
+
+      - name: Assemble delivery package
+        run: |
+          set -euo pipefail
+          PACKAGE="$GITHUB_WORKSPACE/xiao_nrf54lm20b_delivery"
+          mkdir -p "$PACKAGE/firmware" "$PACKAGE/flash" "$PACKAGE/test" "$PACKAGE/tools/nrfutil/home/bin" "$PACKAGE/tools/nrfutil/home/installed"
+          cp build_nrf54lm20b/zephyr/zephyr.elf "$PACKAGE/firmware/"
+          cp build_nrf54lm20b/zephyr/zephyr.signed.bin "$PACKAGE/firmware/"
+          cp build_nrf54lm20b/zephyr/zephyr.signed.hex "$PACKAGE/firmware/"
+          cp release/xiao_nrf54lm20b_delivery/README.md "$PACKAGE/"
+          cp release/xiao_nrf54lm20b_delivery/flash_usb_dfu.cmd "$PACKAGE/"
+          cp tools/xiao_nrf54lm20b_flash/xiao_nrf54lm20b_flash.py "$PACKAGE/flash/"
+          cp tools/xiao_nrf54lm20b_flash/xiao_nrf54lm20b_flash.ps1 "$PACKAGE/flash/"
+          cp release/xiao_nrf54lm20b_delivery/flash/xiao_nrf54lm20b_flash.bat "$PACKAGE/flash/"
+          cp release/xiao_nrf54lm20b_delivery/flash/xiao_nrf54lm20b_flash.sh "$PACKAGE/flash/"
+          cp release/xiao_nrf54lm20b_delivery/test/README.md "$PACKAGE/test/README.md"
+          cp example/xiao_nrf54lm20b_full_test.py "$PACKAGE/test/"
+          cp example/boards/xiao.py "$PACKAGE/test/"
+          cp example/boards/xiao_nrf54lm20b.py "$PACKAGE/test/"
+
+      - name: Bundle portable nrfutil for Windows
+        run: |
+          set -euo pipefail
+          PACKAGE="$GITHUB_WORKSPACE/xiao_nrf54lm20b_delivery/tools/nrfutil"
+          mkdir -p "$RUNNER_TEMP/nrfutil-core" "$RUNNER_TEMP/nrfutil-mcu-manager"
+          curl --fail --location --retry 3 \
+            https://developer.nordicsemi.com/.pc-tools/nrfutil/nrfutil-x86_64-pc-windows-msvc-8.2.0.tar.gz \
+            -o "$RUNNER_TEMP/nrfutil-core.tar.gz"
+          curl --fail --location --retry 3 \
+            https://developer.nordicsemi.com/.pc-tools/nrfutil/nrfutil-mcu-manager-x86_64-pc-windows-msvc-0.9.0.tar.gz \
+            -o "$RUNNER_TEMP/nrfutil-mcu-manager.tar.gz"
+          tar -xzf "$RUNNER_TEMP/nrfutil-core.tar.gz" -C "$RUNNER_TEMP/nrfutil-core" --strip-components=1
+          tar -xzf "$RUNNER_TEMP/nrfutil-mcu-manager.tar.gz" -C "$RUNNER_TEMP/nrfutil-mcu-manager" --strip-components=1
+          cp "$RUNNER_TEMP/nrfutil-core/data/bin/nrfutil.exe" "$PACKAGE/nrfutil.exe"
+          cp -a "$RUNNER_TEMP/nrfutil-core/data/bin/." "$PACKAGE/home/bin/"
+          cp -a "$RUNNER_TEMP/nrfutil-core/data/share" "$PACKAGE/home/"
+          cp -a "$RUNNER_TEMP/nrfutil-mcu-manager/data/bin/." "$PACKAGE/home/bin/"
+          cp -a "$RUNNER_TEMP/nrfutil-mcu-manager/data/share" "$PACKAGE/home/"
+          mkdir -p "$PACKAGE/home/installed/nrfutil-x86_64-pc-windows-msvc" "$PACKAGE/home/installed/nrfutil-mcu-manager-x86_64-pc-windows-msvc"
+          cp "$RUNNER_TEMP/nrfutil-core/files" "$RUNNER_TEMP/nrfutil-core/manifest.json" "$PACKAGE/home/installed/nrfutil-x86_64-pc-windows-msvc/"
+          cp "$RUNNER_TEMP/nrfutil-mcu-manager/files" "$RUNNER_TEMP/nrfutil-mcu-manager/manifest.json" "$PACKAGE/home/installed/nrfutil-mcu-manager-x86_64-pc-windows-msvc/"
+          NRFUTIL_HOME="$PACKAGE/home" "$PACKAGE/nrfutil.exe" mcu-manager --help >/dev/null
+
+      - name: Generate checksums
+        run: |
+          cd xiao_nrf54lm20b_delivery
+          find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+
+      - name: Remove signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/nrf54lm20b-root-ed25519.pem" "$RUNNER_TEMP/nrf54lm20b-production-signing.conf"
+
+      - name: Upload delivery package
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiao-nrf54lm20b-delivery-${{ github.sha }}
+          path: xiao_nrf54lm20b_delivery
+          if-no-files-found: error

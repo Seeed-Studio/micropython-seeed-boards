@@ -1,0 +1,94 @@
+name: Build MicroPython Firmware for Seeed XIAO nRF54LM20B
+
+on:
+  workflow_call:
+    inputs:
+      trigger:
+        required: true
+        type: string
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clean disk space
+        run: |
+          sudo apt clean
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache
+          docker system prune -f
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git cmake ninja-build gperf ccache \
+            dfu-util device-tree-compiler python3-dev python3-pip python3-setuptools \
+            python3-tk python3-wheel xz-utils file libpython3-dev libffi-dev wget
+          pip3 install west imgtool
+
+      - name: Set up NCS v3.3.0
+        run: |
+          west init -m https://github.com/nrfconnect/sdk-nrf --mr v3.3.0 ncs
+          cd ncs
+          west update
+          west zephyr-export
+          pip3 install -r zephyr/scripts/requirements.txt
+
+      - name: Install Zephyr SDK 0.17.0
+        run: |
+          wget -q https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.0/zephyr-sdk-0.17.0_linux-x86_64.tar.xz
+          mkdir -p "$RUNNER_TEMP/zephyr-sdk"
+          tar -xf zephyr-sdk-0.17.0_linux-x86_64.tar.xz -C "$RUNNER_TEMP/zephyr-sdk"
+          # The nRF54LM20B application is ARM-only.  Installing every SDK
+          # target plus host tools is unnecessary and exits non-zero on the
+          # hosted runner; install only the compiler this job actually uses.
+          "$RUNNER_TEMP/zephyr-sdk/zephyr-sdk-0.17.0/setup.sh" -t arm-zephyr-eabi
+
+      - name: Apply pinned MicroPython compatibility patch
+        run: ./tools/apply_micropython_patches.sh
+
+      - name: Generate CI-only signing key
+        run: |
+          imgtool keygen -k "$RUNNER_TEMP/nrf54lm20b-ci-ed25519.pem" -t ed25519
+          printf '%s\n' \
+            'CONFIG_MCUBOOT_SIGNATURE_KEY_FILE="'"$RUNNER_TEMP"'/nrf54lm20b-ci-ed25519.pem"' \
+            > "$RUNNER_TEMP/nrf54lm20b-ci-signing.conf"
+
+      - name: Build XIAO nRF54LM20B
+        run: |
+          source ncs/zephyr/zephyr-env.sh
+          export PROJECT_DIR="$GITHUB_WORKSPACE"
+          west build "$PROJECT_DIR/lib/micropython/ports/zephyr" \
+            --build-dir "$PROJECT_DIR/build_nrf54lm20b" \
+            --pristine \
+            --no-sysbuild \
+            --board xiao_nrf54lm20b/nrf54lm20b/cpuapp -- \
+            -DBOARD_ROOT="$PROJECT_DIR" \
+            -DEXTRA_DTC_OVERLAY_FILE="$PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20b_cpuapp.overlay" \
+            -DEXTRA_CONF_FILE="$PROJECT_DIR/boards/xiao_nrf54lm20b_nrf54lm20b_cpuapp.conf;$RUNNER_TEMP/nrf54lm20b-ci-signing.conf"
+        env:
+          ZEPHYR_SDK_INSTALL_DIR: ${{ runner.temp }}/zephyr-sdk/zephyr-sdk-0.17.0
+
+      - name: Upload CI validation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiao-nrf54lm20b-ci-validation-only
+          path: |
+            build_nrf54lm20b/zephyr/zephyr.elf
+            build_nrf54lm20b/zephyr/zephyr.bin
+            build_nrf54lm20b/zephyr/zephyr.signed.bin
+          if-no-files-found: error
+
+# The key created above is ephemeral. These artifacts validate source
+# compatibility only and are not accepted by production KMU-provisioned boards.
