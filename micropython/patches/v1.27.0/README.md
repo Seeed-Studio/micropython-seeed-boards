@@ -8,7 +8,8 @@ It adds the Zephyr-port integration required by the XIAO nRF54LM20B board:
 - discovery and compilation of the board's external C modules;
 - the software RTC exposed as `machine.RTC()`;
 - `time.localtime()` for host clock synchronisation; and
-- `zsensor.GAUGE_VOLTAGE` for nPM1300 battery readings.
+- `zsensor.GAUGE_VOLTAGE` for nPM1300 battery readings; and
+- the Zephyr 4.x Bluetooth advertiser option rename used by NCS 3.3.0.
 
 The external-flash LittleFS mount/format path is supplied by the upstream
 v1.27 `_boot.py` frozen module, so no forked MicroPython source is required.
