@@ -124,7 +124,12 @@ jobs:
           mkdir -p "$PACKAGE/home/installed/nrfutil-x86_64-pc-windows-msvc" "$PACKAGE/home/installed/nrfutil-mcu-manager-x86_64-pc-windows-msvc"
           cp "$RUNNER_TEMP/nrfutil-core/files" "$RUNNER_TEMP/nrfutil-core/manifest.json" "$PACKAGE/home/installed/nrfutil-x86_64-pc-windows-msvc/"
           cp "$RUNNER_TEMP/nrfutil-mcu-manager/files" "$RUNNER_TEMP/nrfutil-mcu-manager/manifest.json" "$PACKAGE/home/installed/nrfutil-mcu-manager-x86_64-pc-windows-msvc/"
-          NRFUTIL_HOME="$PACKAGE/home" "$PACKAGE/nrfutil.exe" mcu-manager --help >/dev/null
+          # This is a Linux runner and these are Windows executables.  Verify
+          # the portable layout here; its functional invocation is performed
+          # on the Windows host that receives the delivery package.
+          test -s "$PACKAGE/nrfutil.exe"
+          test -s "$PACKAGE/home/bin/nrfutil.exe"
+          test -s "$PACKAGE/home/bin/nrfutil-mcu-manager.exe"
 
       - name: Generate checksums
         run: |
