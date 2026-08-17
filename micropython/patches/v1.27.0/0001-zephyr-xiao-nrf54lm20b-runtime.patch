@@ -2,9 +2,8 @@ diff --git a/ports/zephyr/CMakeLists.txt b/ports/zephyr/CMakeLists.txt
 index cf35ba73da27813275b24a5f27d54c6ae2e5d807..fe47e6b7fa28aaa626b298880b83029d119641ec 100644
 --- a/ports/zephyr/CMakeLists.txt
 +++ b/ports/zephyr/CMakeLists.txt
-@@ -61,6 +61,8 @@ set(MICROPY_SOURCE_PORT
+@@ -61,6 +61,7 @@ set(MICROPY_SOURCE_PORT
      mpthreadport.c
-+    xiao_nrf54lm20b_imu_power.c
  )
  list(TRANSFORM MICROPY_SOURCE_PORT PREPEND ${MICROPY_PORT_DIR}/)
 +include(${MICROPY_DIR}/py/usermod.cmake)
@@ -19,7 +18,7 @@ index cf35ba73da27813275b24a5f27d54c6ae2e5d807..fe47e6b7fa28aaa626b298880b83029d
  )
  
  zephyr_get_include_directories_for_lang(C includes)
-@@ -135,6 +137,7 @@ zephyr_library_include_directories(
+@@ -135,6 +136,7 @@ zephyr_library_include_directories(
      ${MICROPY_INC_CORE}
      ${MICROPY_PORT_DIR}
      ${CMAKE_CURRENT_BINARY_DIR}
@@ -27,6 +26,12 @@ index cf35ba73da27813275b24a5f27d54c6ae2e5d807..fe47e6b7fa28aaa626b298880b83029d
  )
  
  zephyr_library_compile_options(
+@@ -162,4 +164,5 @@ target_sources(app PRIVATE
+     src/zephyr_start.c
+     src/zephyr_getchar.c
+     src/usbd.c
++    src/xiao_nrf54lm20b_imu_power.c
+ )
 diff --git a/ports/zephyr/modmachine.c b/ports/zephyr/modmachine.c
 index 89ad12f185daa71e1c697583a78b8c126b15dbfa..3999465ba257968dbc84a117006daf50cd8a1f4c 100644
 --- a/ports/zephyr/modmachine.c
@@ -139,12 +144,12 @@ index c1b8ddfd8..233b27759 100644
              | BT_LE_ADV_OPT_USE_IDENTITY
              | BT_LE_ADV_OPT_SCANNABLE,
          .interval_min = interval_us / 625,
-diff --git a/ports/zephyr/xiao_nrf54lm20b_imu_power.c b/ports/zephyr/xiao_nrf54lm20b_imu_power.c
+diff --git a/ports/zephyr/src/xiao_nrf54lm20b_imu_power.c b/ports/zephyr/src/xiao_nrf54lm20b_imu_power.c
 new file mode 100644
 index 000000000..890e0a590
 --- /dev/null
-+++ b/ports/zephyr/xiao_nrf54lm20b_imu_power.c
-@@ -0,0 +1,44 @@
++++ b/ports/zephyr/src/xiao_nrf54lm20b_imu_power.c
+@@ -0,0 +1,56 @@
 +/*
 + * This file is part of the MicroPython project, http://micropython.org/
 + *
@@ -153,6 +158,7 @@ index 000000000..890e0a590
 + * Copyright (c) 2026 Seeed Studio
 + */
 +
++#include <errno.h>
 +#include <zephyr/device.h>
 +#include <zephyr/drivers/regulator.h>
 +#include <zephyr/init.h>
@@ -161,7 +167,8 @@ index 000000000..890e0a590
 +/*
 + * XIAO nRF54LM20B powers its LSM6DS3TR-C through nPM1300 LDO1. The board
 + * DTS configures the LDO voltage and operating mode, but deliberately does
-+ * not mark it boot-on. Enable it in the application before the LSM6DSL
++ * not mark it boot-on. The power switch and LDO must be explicitly enabled
++ * before the LSM6DSL
 + * driver initialises, so machine.I2C("i2c30") can access the onboard IMU
 + * without a MicroPython-specific PMIC setup step.
 + *
@@ -171,14 +178,27 @@ index 000000000..890e0a590
 +#if defined(CONFIG_BOARD_XIAO_NRF54LM20B_NRF54LM20B_CPUAPP)
 +static int xiao_nrf54lm20b_enable_imu_vdd(void)
 +{
++    int ret;
++    const struct device *const power_en = DEVICE_DT_GET(DT_NODELABEL(power_en));
 +    const struct device *const imu_vdd = DEVICE_DT_GET(DT_NODELABEL(imu_vdd));
++
++    if (!device_is_ready(power_en)) {
++        return 0;
++    }
 +
 +    if (!device_is_ready(imu_vdd)) {
 +        /* Do not prevent the MicroPython REPL from starting if PMIC init fails. */
 +        return 0;
 +    }
 +
-+    if (regulator_enable(imu_vdd) < 0) {
++    /* Keep this explicit even though the board marks power_en boot-on. */
++    ret = regulator_enable(power_en);
++    if (ret < 0 && ret != -EALREADY) {
++        return 0;
++    }
++
++    ret = regulator_enable(imu_vdd);
++    if (ret < 0 && ret != -EALREADY) {
 +        return 0;
 +    }
 +
