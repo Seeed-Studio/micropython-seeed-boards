@@ -113,6 +113,14 @@ apply_patch "$ROOT/zephyr/patches/zephyr-4.4.0/0004-adc-stm32-fix-pcsel-preselec
 # on exit, then applies the storage patch on top.
 MP_BASE=19a1aa3c1b87d42c7bbdff52aa3a80a161897c13
 MP_DIR="$ROOT/lib/micropython"
+if ! git -C "$MP_DIR" cat-file -e "$MP_BASE^{commit}" 2>/dev/null; then
+    # The submodule checkout (actions/checkout fetch-depth:1) only has the
+    # pinned commit locally; fetch the validated base from upstream.
+    git -C "$MP_DIR" fetch -q origin "$MP_BASE" || {
+        echo "error: cannot fetch micropython $MP_BASE" >&2
+        exit 2
+    }
+fi
 MP_ORIG_REF=$(git -C "$MP_DIR" rev-parse HEAD 2>/dev/null || true)
 if [[ -n "$MP_ORIG_REF" ]] && [[ "$MP_ORIG_REF" != "$MP_BASE" ]]; then
     git -C "$MP_DIR" checkout -q "$MP_BASE" || {
