@@ -111,7 +111,7 @@ apply_patch "$ROOT/zephyr/patches/zephyr-4.4.0/0004-adc-stm32-fix-pcsel-preselec
 # on the repo-wide pin (v1.27.0, shared with nrf54lm20b); this build checks out
 # 19a1aa3 inside the submodule for the duration of the build and restores it
 # on exit, then applies the storage patch on top.
-MP_BASE=9939565d506a6a693bbcf984c26b7ee1c05a2a11
+MP_BASE=9939565d50acfcd68429e86b6276a590197db951  # official micropython, 2025-08-26, ancestor of master
 MP_DIR="$ROOT/lib/micropython"
 if ! git -C "$MP_DIR" cat-file -e "$MP_BASE^{commit}" 2>/dev/null; then
     # The submodule checkout (actions/checkout fetch-depth:1) only holds the
