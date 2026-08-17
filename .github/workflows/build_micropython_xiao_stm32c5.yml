@@ -42,17 +42,14 @@ jobs:
       # gcc-arm-none-eabi package builds+links fine but the image hangs on boot.
       - name: Install Zephyr SDK
         run: |
-          wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.0/zephyr-sdk-0.17.0_linux-x86_64.tar.xz
-          mkdir -p ~/zephyr-sdk
-          tar -xvf zephyr-sdk-0.17.0_linux-x86_64.tar.xz -C ~/zephyr-sdk
-          cd ~/zephyr-sdk/zephyr-sdk-0.17.0
-          ./setup.sh -t arm-zephyr-eabi -h
+          cd zephyrproject
+          west sdk install --toolchain arm-zephyr-eabi --update-yml || true
+          west sdk install --toolchain arm-zephyr-eabi
 
       - name: Build UF2
         env:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyrproject/zephyr
           ZEPHYR_TOOLCHAIN_VARIANT: zephyr
-          ZEPHYR_SDK_INSTALL_DIR: ~/zephyr-sdk/zephyr-sdk-0.17.0
         run: |
           tools/xiao_stm32c5/build.sh
 
