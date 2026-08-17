@@ -116,10 +116,11 @@ MP_DIR="$ROOT/lib/micropython"
 if ! git -C "$MP_DIR" cat-file -e "$MP_BASE^{commit}" 2>/dev/null; then
     # The submodule checkout (actions/checkout fetch-depth:1) only has the
     # pinned commit locally; fetch the validated base from upstream.
-    git -C "$MP_DIR" fetch -q origin "$MP_BASE" || {
-        echo "error: cannot fetch micropython $MP_BASE" >&2
+    git -C "$MP_DIR" fetch -q --unshallow origin 2>/dev/null         || git -C "$MP_DIR" fetch -q origin
+    if ! git -C "$MP_DIR" cat-file -e "$MP_BASE^{commit}" 2>/dev/null; then
+        echo "error: micropython $MP_BASE not present after fetch" >&2
         exit 2
-    }
+    fi
 fi
 MP_ORIG_REF=$(git -C "$MP_DIR" rev-parse HEAD 2>/dev/null || true)
 if [[ -n "$MP_ORIG_REF" ]] && [[ "$MP_ORIG_REF" != "$MP_BASE" ]]; then
