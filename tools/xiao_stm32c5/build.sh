@@ -114,11 +114,23 @@ apply_patch "$ROOT/zephyr/patches/zephyr-4.4.0/0004-adc-stm32-fix-pcsel-preselec
 MP_BASE=9939565d506a6a693bbcf984c26b7ee1c05a2a11
 MP_DIR="$ROOT/lib/micropython"
 if ! git -C "$MP_DIR" cat-file -e "$MP_BASE^{commit}" 2>/dev/null; then
-    # The submodule checkout (actions/checkout fetch-depth:1) only has the
-    # pinned commit locally; fetch the validated base from upstream.
-    git -C "$MP_DIR" fetch -q --unshallow origin 2>/dev/null         || git -C "$MP_DIR" fetch -q origin
+    # The submodule checkout (actions/checkout fetch-depth:1) only holds the
+    # pinned commit. $MP_BASE is an ancestor of official micropython/master,
+    # so it can be reached by deepening the fetch of master. Plain fetch and
+    # --unshallow both fail on this shallow clone setup, so deepen explicitly.
+    for depth in 2000 8000 20000; do
+        echo "  fetching micropython history (depth $depth)..."
+        if git -C "$MP_DIR" fetch -q --depth="$depth" origin master; then
+            git -C "$MP_DIR" cat-file -e "$MP_BASE^{commit}" 2>/dev/null && break
+        fi
+    done
     if ! git -C "$MP_DIR" cat-file -e "$MP_BASE^{commit}" 2>/dev/null; then
-        echo "error: micropython $MP_BASE not present after fetch" >&2
+        # Last resort: unshallow completely.
+        git -C "$MP_DIR" fetch -q --unshallow origin 2>&1 | head -3 || true
+        git -C "$MP_DIR" fetch -q origin || true
+    fi
+    if ! git -C "$MP_DIR" cat-file -e "$MP_BASE^{commit}" 2>/dev/null; then
+        echo "error: micropython $MP_BASE unreachable (fetch-deepen failed)" >&2
         exit 2
     fi
 fi
