@@ -93,15 +93,12 @@ jobs:
           cp build_nrf54lm20b/zephyr/zephyr.signed.bin "$PACKAGE/firmware/"
           cp build_nrf54lm20b/zephyr/zephyr.signed.hex "$PACKAGE/firmware/"
           cp release/xiao_nrf54lm20b_delivery/README.md "$PACKAGE/"
-          cp release/xiao_nrf54lm20b_delivery/flash_usb_dfu.cmd "$PACKAGE/"
+          cp release/xiao_nrf54lm20b_delivery/flash/flash_usb_dfu.cmd "$PACKAGE/flash/"
           cp tools/xiao_nrf54lm20b_flash/xiao_nrf54lm20b_flash.py "$PACKAGE/flash/"
           cp tools/xiao_nrf54lm20b_flash/xiao_nrf54lm20b_flash.ps1 "$PACKAGE/flash/"
-          cp release/xiao_nrf54lm20b_delivery/flash/xiao_nrf54lm20b_flash.bat "$PACKAGE/flash/"
           cp release/xiao_nrf54lm20b_delivery/flash/xiao_nrf54lm20b_flash.sh "$PACKAGE/flash/"
           cp release/xiao_nrf54lm20b_delivery/test/README.md "$PACKAGE/test/README.md"
           cp example/xiao_nrf54lm20b_full_test.py "$PACKAGE/test/"
-          cp example/boards/xiao.py "$PACKAGE/test/"
-          cp example/boards/xiao_nrf54lm20b.py "$PACKAGE/test/"
 
       - name: Bundle portable nrfutil for Windows
         run: |

@@ -1,8 +1,13 @@
 # XIAO nRF54LM20B 测试脚本
 
 测试通过应用固件的 USB CDC ACM REPL 执行。先烧录包内的
-`firmware/zephyr.signed.bin`，连接应用 CDC（`2886:8013`），再将本目录的
-`xiao.py`、`xiao_nrf54lm20b.py` 和 `xiao_nrf54lm20b_full_test.py` 上传到板上。
+`firmware/zephyr.signed.bin`，连接应用 CDC（`2886:8013`），再运行本目录的
+`xiao_nrf54lm20b_full_test.py`。
+
+`boards.xiao` 与 `boards.xiao_nrf54lm20b` 已冻结在固件中；无需、也不应将这两份
+helper 源码上传到文件系统。使用 Thonny 时直接打开并运行
+`xiao_nrf54lm20b_full_test.py` 即可。若使用 mpremote 等工具将测试保存到文件系统，
+只需上传该测试脚本。
 
 在普通 `>>>` REPL 中启动测试台：
 
