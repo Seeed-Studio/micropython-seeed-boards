@@ -148,31 +148,30 @@ if [[ -n "$MP_ORIG_REF" ]] && [[ "$MP_ORIG_REF" != "$MP_BASE" ]]; then
 fi
 echo "  micropython checkout: $(git -C "$MP_DIR" rev-parse --short HEAD)"
 
+# Backup files the patch MODIFIES (new files are created by the patch
+# itself; track them for removal on restore).
 MP_PATCH_ROOT="$BUILD_DIR.micropython-backup"
 rm -rf "$MP_PATCH_ROOT"
 mkdir -p "$MP_PATCH_ROOT"
 for mp_file in ports/zephyr/Kconfig ports/zephyr/main.c \
                ports/zephyr/machine_pwm.c ports/zephyr/zephyr_storage.c \
                ports/zephyr/CMakeLists.txt ports/zephyr/modbluetooth_zephyr.c \
-               ports/zephyr/modules/boards/__init__.py \
-               ports/zephyr/modules/boards/xiao.py \
-               ports/zephyr/modules/boards/xiao_nrf54lm20a.py \
-               py/makeqstrdefs_preprocessed.py py/mkrules.cmake; do
+               py/mkrules.cmake; do
     mp_target="$ROOT/lib/micropython/$mp_file"
-    if [[ ! -f "$mp_target" ]]; then
-        echo "error: missing micropython file: $mp_target" >&2
-        exit 2
+    if [[ -f "$mp_target" ]]; then
+        mkdir -p "$MP_PATCH_ROOT/$(dirname "$mp_file")"
+        cp -a "$mp_target" "$MP_PATCH_ROOT/$mp_file"
+        RESTORE_TARGETS+=("$mp_target")
     fi
-    mkdir -p "$MP_PATCH_ROOT/$(dirname "$mp_file")"
-    cp -a "$mp_target" "$MP_PATCH_ROOT/$mp_file"
-    RESTORE_TARGETS+=("$mp_target")
 done
-mkdir -p "$ROOT/lib/micropython/ports/zephyr/modules"
-mp_boot="$ROOT/lib/micropython/ports/zephyr/modules/_boot.py"
-if [[ ! -f "$mp_boot" ]]; then
-    touch "$MP_PATCH_ROOT/_boot.py.absent"
-    RESTORE_TARGETS+=("$mp_boot")
-fi
+# New files the patch creates — track them so we can rm on restore.
+for mp_new in ports/zephyr/modules/_boot.py \
+              ports/zephyr/modules/boards/__init__.py \
+              ports/zephyr/modules/boards/xiao.py \
+              ports/zephyr/modules/boards/xiao_nrf54lm20a.py \
+              py/makeqstrdefs_preprocessed.py; do
+    RESTORE_TARGETS+=("$ROOT/lib/micropython/$mp_new")
+done
 if ! patch -d "$ROOT/lib/micropython" -p1 -N -r /dev/null \
         < "$ROOT/micropython/patches/0001-stm32c5-storage-recovery.patch" 2>/dev/null; then
     if patch -d "$ROOT/lib/micropython" -p1 -N --dry-run -R \
