@@ -1,3 +1,31 @@
+diff --git a/ports/zephyr/CMakeLists.txt b/ports/zephyr/CMakeLists.txt
+index a5cc477204e..848d96109b2 100644
+--- a/ports/zephyr/CMakeLists.txt
++++ b/ports/zephyr/CMakeLists.txt
+@@ -57,6 +57,7 @@ set(MICROPY_SOURCE_PORT
+     mpthreadport.c
+ )
+ list(TRANSFORM MICROPY_SOURCE_PORT PREPEND ${MICROPY_PORT_DIR}/)
++include(${MICROPY_DIR}/py/usermod.cmake)
+ 
+ set(MICROPY_SOURCE_SHARED
+     libc/printf.c
+@@ -97,6 +98,7 @@ set(MICROPY_SOURCE_QSTR
+     ${MICROPY_SOURCE_DRIVERS}
+     ${MICROPY_SOURCE_LIB}
+     ${MICROPY_SOURCE_PORT}
++    ${MICROPY_SOURCE_USERMOD}
+ )
+ 
+ zephyr_get_include_directories_for_lang(C includes)
+@@ -112,6 +114,7 @@ zephyr_library_include_directories(
+     ${MICROPY_INC_CORE}
+     ${MICROPY_PORT_DIR}
+     ${CMAKE_CURRENT_BINARY_DIR}
++    ${MICROPY_INC_USERMOD}
+ )
+ 
+ zephyr_library_compile_options(
 diff --git a/ports/zephyr/Kconfig b/ports/zephyr/Kconfig
 index 6db0133f4f1..bfa63e36486 100644
 --- a/ports/zephyr/Kconfig
@@ -125,6 +153,25 @@ index f7ac997d92a..d856f1d3227 100644
      #endif
  
      #if MICROPY_MODULE_FROZEN || MICROPY_VFS
+diff --git a/ports/zephyr/modbluetooth_zephyr.c b/ports/zephyr/modbluetooth_zephyr.c
+index c1b8ddfd8b4..aad34856ae4 100644
+--- a/ports/zephyr/modbluetooth_zephyr.c
++++ b/ports/zephyr/modbluetooth_zephyr.c
+@@ -39,6 +39,14 @@
+ #include <zephyr/bluetooth/gatt.h>
+ #include "extmod/modbluetooth.h"
+ 
++#ifndef BT_LE_ADV_OPT_CONNECTABLE
++#define BT_LE_ADV_OPT_CONNECTABLE BT_LE_ADV_OPT_CONN
++#endif
++
++#ifndef BT_LE_ADV_OPT_ONE_TIME
++#define BT_LE_ADV_OPT_ONE_TIME 0
++#endif
++
+ #define DEBUG_printf(...) // printk("BLE: " __VA_ARGS__)
+ 
+ #define BLE_HCI_SCAN_ITVL_MIN 0x10
 diff --git a/ports/zephyr/modules/_boot.py b/ports/zephyr/modules/_boot.py
 new file mode 100644
 index 00000000000..af5d787d948
@@ -217,6 +264,262 @@ index 00000000000..af5d787d948
 +    if _read_marker() != _FW_VERSION:
 +        _cleanup()
 +        _write_marker()
+diff --git a/ports/zephyr/modules/boards/__init__.py b/ports/zephyr/modules/boards/__init__.py
+new file mode 100644
+index 00000000000..7bc9cd9bf78
+--- /dev/null
++++ b/ports/zephyr/modules/boards/__init__.py
+@@ -0,0 +1 @@
++# Frozen helper package for Seeed XIAO board mappings.
+diff --git a/ports/zephyr/modules/boards/xiao.py b/ports/zephyr/modules/boards/xiao.py
+new file mode 100644
+index 00000000000..7c560f488a1
+--- /dev/null
++++ b/ports/zephyr/modules/boards/xiao.py
+@@ -0,0 +1,158 @@
++from sys import implementation, platform
++from machine import Pin, PWM, SPI, UART
++
++if "nrf54lm20a" in implementation._machine:
++    from ADC import ADC
++    from PDM import PDM
++    from LowPWR import LowPWR
++    from RTC import RTC
++    from machine import I2C
++    from boards.xiao_nrf54lm20a import xiao_nrf54lm20a as xiao
++elif "nrf54l15" in implementation._machine:
++    from ADC import ADC
++    from PDM import PDM
++    from LowPWR import LowPWR
++    from RTC import RTC
++    from machine import I2C
++    from boards.xiao_nrf54l15 import xiao_nrf54l15 as xiao
++elif "mg24" in implementation._machine:
++    from ADC import ADC
++    from RTC import RTC
++    from machine import I2C
++    from boards.xiao_mg24 import xiao_mg24 as xiao
++elif "RA4M1" in implementation._machine:
++    from machine import ADC, RTC, SoftI2C, SoftSPI
++    from boards.xiao_ra4m1 import xiao_ra4m1 as xiao
++
++
++class XiaoPin(Pin):
++    def __init__(self, pin_num, mode=-1, pull=None):
++        try:
++            super().__init__(xiao.pin(pin_num), mode, pull)
++        except Exception:
++            raise ValueError("Invalid pin")
++
++
++class XiaoADC(ADC):
++    def __init__(self, adc_num):
++        try:
++            super().__init__(xiao.adc(adc_num))
++        except Exception:
++            raise ValueError("Invalid adc")
++
++
++class XiaoPWM(PWM):
++    def __init__(self, pwm_num):
++        try:
++            super().__init__(xiao.pwm(pwm_num))
++        except Exception:
++            raise ValueError("Invalid pwm")
++
++
++if "RA4M1" in implementation._machine:
++    class XiaoI2C(SoftI2C):
++        def __init__(self, i2c_num, sda_num, scl_num, freq_num=400000):
++            try:
++                super().__init__(scl=xiao.pin(scl_num), sda=xiao.pin(sda_num))
++            except Exception:
++                raise ValueError("Invalid i2c")
++
++
++    class XiaoSPI(SoftSPI):
++        def __init__(self, spi_num, baudrate_num, sck_num, mosi_num, miso_num):
++            try:
++                super().__init__(
++                    baudrate=baudrate_num,
++                    polarity=0,
++                    phase=0,
++                    bits=8,
++                    firstbit=SoftSPI.MSB,
++                    sck=xiao.pin(miso_num),
++                    mosi=xiao.pin(mosi_num),
++                    miso=xiao.pin(sck_num),
++                )
++            except Exception:
++                raise ValueError("Invalid spi")
++else:
++    class XiaoI2C(I2C):
++        if platform == "esp32":
++            def __init__(self, i2c_num, sda_num, scl_num, freq_num=400000):
++                try:
++                    super().__init__(xiao.i2c(i2c_num), sda=xiao.pin(sda_num), scl=xiao.pin(scl_num), freq=freq_num)
++                except Exception:
++                    raise ValueError("Invalid i2c")
++        else:
++            def __init__(self, i2c_num, sda_num, scl_num, freq=400000):
++                try:
++                    super().__init__(xiao.i2c(i2c_num))
++                except Exception:
++                    raise ValueError("Invalid i2c")
++
++
++    class XiaoSPI(SPI):
++        if platform == "esp32":
++            def __init__(self, spi_num, baudrate_num, sck_num, mosi_num, miso_num):
++                try:
++                    super().__init__(xiao.spi(spi_num), baudrate=baudrate_num, sck=xiao.pin(sck_num), mosi=xiao.pin(mosi_num), miso=xiao.pin(miso_num))
++                except Exception:
++                    raise ValueError("Invalid spi")
++        else:
++            def __init__(self, spi_num, baudrate_num, sck_num, mosi_num, miso_num):
++                try:
++                    super().__init__(xiao.spi(spi_num), baudrate=baudrate_num, polarity=0, phase=0, bits=8, firstbit=SPI.MSB)
++                except Exception:
++                    raise ValueError("Invalid spi")
++
++
++class XiaoUART(UART):
++    if platform == "esp32":
++        def __init__(self, uart_num, baudrate_num, tx_num, rx_num):
++            try:
++                super().__init__(xiao.uart(uart_num), baudrate=baudrate_num, tx=xiao.pin(tx_num), rx=xiao.pin(rx_num))
++            except Exception:
++                raise ValueError("Invalid uart")
++    else:
++        def __init__(self, uart_num, baudrate_num, tx_num, rx_num):
++            try:
++                super().__init__(xiao.uart(uart_num), baudrate=baudrate_num)
++            except Exception:
++                raise ValueError("Invalid uart")
++
++
++class XiaoRTC(RTC):
++    if platform == "esp32" or platform == "renesas-ra":
++        def __init__(self):
++            try:
++                self._rtc = RTC()
++            except Exception:
++                raise ValueError("Invalid rtc")
++
++        def set_datetime(self, datetime_tuple):
++            self._rtc.datetime((datetime_tuple[0], datetime_tuple[1], datetime_tuple[2], 0, datetime_tuple[3], datetime_tuple[4], datetime_tuple[5], 0))
++
++        def get_datetime(self):
++            t = self._rtc.datetime()
++            return (t[0], t[1], t[2], t[4], t[5], t[6])
++    else:
++        def __init__(self):
++            try:
++                super().__init__()
++            except Exception:
++                raise ValueError("Invalid rtc")
++
++
++if "nrf54lm20a" in implementation._machine or "nrf54l15" in implementation._machine:
++    class XiaoPDM(PDM):
++        def __init__(self, pdm_num):
++            try:
++                super().__init__(xiao.pdm(pdm_num))
++            except Exception:
++                raise ValueError("Invalid pdm")
++
++
++    class XiaoLowPWR(LowPWR):
++        def __init__(self):
++            try:
++                super().__init__()
++            except Exception:
++                raise ValueError("Invalid lowpwr")
+diff --git a/ports/zephyr/modules/boards/xiao_nrf54lm20a.py b/ports/zephyr/modules/boards/xiao_nrf54lm20a.py
+new file mode 100644
+index 00000000000..3646d22ce9f
+--- /dev/null
++++ b/ports/zephyr/modules/boards/xiao_nrf54lm20a.py
+@@ -0,0 +1,79 @@
++class xiao_nrf54lm20a:
++    def pin(pin):
++        xiao_pin = {
++            0: ("gpio1", 0),
++            1: ("gpio1", 31),
++            2: ("gpio1", 30),
++            3: ("gpio1", 29),
++            4: ("gpio1", 3),
++            5: ("gpio1", 7),
++            6: ("gpio1", 8),
++            7: ("gpio1", 9),
++            8: ("gpio1", 4),
++            9: ("gpio1", 5),
++            10: ("gpio1", 6),
++            11: ("gpio3", 0),
++            12: ("gpio3", 1),
++            13: ("gpio3", 2),
++            14: ("gpio3", 3),
++            15: ("gpio3", 4),
++            "led": ("gpio1", 22),
++            "led_blue": ("gpio1", 23),
++            "led_red": ("gpio1", 22),
++            "led_green": ("gpio1", 24),
++            "led_b": ("gpio1", 23),
++            "led_r": ("gpio1", 22),
++            "led_g": ("gpio1", 24),
++            "sw": ("gpio0", 9),
++            "imu_scl": ("gpio0", 7),
++            "imu_sda": ("gpio0", 8),
++        }
++        return xiao_pin[pin]
++
++    def adc(adc):
++        xiao_adc = {
++            0: ("adc", 0),
++            1: ("adc", 1),
++            2: ("adc", 2),
++            3: ("adc", 3),
++            4: ("adc", 4),
++            5: ("adc", 5),
++            6: ("adc", 6),
++            7: ("adc", 7),
++            "vbat": ("adc", 7),
++        }
++        return xiao_adc[adc]
++
++    def pwm(pwm):
++        xiao_pwm = {
++            0: ("pwm20", 0),
++            1: ("pwm20", 1),
++            2: ("pwm20", 2),
++        }
++        return xiao_pwm[pwm]
++
++    def i2c(i2c):
++        xiao_i2c = {
++            "i2c0": "i2c22",
++            "i2c1": "i2c30",
++        }
++        return xiao_i2c[i2c]
++
++    def spi(spi):
++        xiao_spi = {
++            "spi0": "spi23",
++        }
++        return xiao_spi[spi]
++
++    def uart(uart):
++        xiao_uart = {
++            "uart0": "uart20",
++            "uart1": "uart21",
++        }
++        return xiao_uart[uart]
++
++    def pdm(pdm):
++        xiao_pdm = {
++            "pdm0": "pdm20",
++        }
++        return xiao_pdm[pdm]
 diff --git a/ports/zephyr/zephyr_storage.c b/ports/zephyr/zephyr_storage.c
 index 40bcef73384..e9595b33154 100644
 --- a/ports/zephyr/zephyr_storage.c
@@ -232,3 +535,132 @@ index 40bcef73384..e9595b33154 100644
      self->block_count = self->area->fa_size / self->block_size;
  
      return MP_OBJ_FROM_PTR(self);
+diff --git a/py/makeqstrdefs_preprocessed.py b/py/makeqstrdefs_preprocessed.py
+new file mode 100644
+index 00000000000..39ec721c185
+--- /dev/null
++++ b/py/makeqstrdefs_preprocessed.py
+@@ -0,0 +1,74 @@
++#!/usr/bin/env python3
++#
++# This file is part of the MicroPython project, http://micropython.org/
++#
++# The MIT License (MIT)
++#
++# Copyright (c) 2026
++#
++# Permission is hereby granted, free of charge, to any person obtaining a copy
++# of this software and associated documentation files (the "Software"), to deal
++# in the Software without restriction, including without limitation the rights
++# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++# copies of the Software, and to permit persons to whom the Software is
++# furnished to do so, subject to the following conditions:
++#
++# The above copyright notice and this permission notice shall be included in
++# all copies or substantial portions of the Software.
++#
++# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
++# THE SOFTWARE.
++
++import argparse
++import pathlib
++import re
++import subprocess
++import sys
++import tempfile
++
++
++def parse_args():
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--compiler", required=True)
++    parser.add_argument("--output", required=True)
++    parser.add_argument("--inputs", nargs="+", required=True)
++    parser.add_argument("--cflags", nargs=argparse.REMAINDER, default=[])
++    return parser.parse_args()
++
++
++def main():
++    args = parse_args()
++
++    output_path = pathlib.Path(args.output)
++    output_path.parent.mkdir(parents=True, exist_ok=True)
++
++    with tempfile.NamedTemporaryFile("w", suffix=".h", delete=False, encoding="utf-8") as tmp:
++        tmp_path = pathlib.Path(tmp.name)
++        for input_name in args.inputs:
++            with open(input_name, "r", encoding="utf-8") as src:
++                for line in src:
++                    if re.match(r"^Q\(.*\)", line):
++                        tmp.write(f"\"{line.rstrip()}\"\n")
++                    else:
++                        tmp.write(line)
++
++    try:
++        cmd = [args.compiler, "-E", *args.cflags, str(tmp_path)]
++        proc = subprocess.run(cmd, check=True, capture_output=True, text=True)
++    finally:
++        tmp_path.unlink(missing_ok=True)
++
++    processed = []
++    for line in proc.stdout.splitlines():
++        processed.append(re.sub(r'^"(Q\(.*\))"$', r"\1", line))
++
++    output_path.write_text("\n".join(processed) + "\n", encoding="utf-8")
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/py/mkrules.cmake b/py/mkrules.cmake
+index e3d769cc59b..db3daa250ca 100644
+--- a/py/mkrules.cmake
++++ b/py/mkrules.cmake
+@@ -134,7 +134,7 @@ add_custom_command(
+ add_custom_command(
+     OUTPUT ${MICROPY_QSTRDEFS_SPLIT}
+     COMMAND ${Python3_EXECUTABLE} ${MICROPY_PY_DIR}/makeqstrdefs.py split qstr ${MICROPY_GENHDR_DIR}/qstr.i.last ${MICROPY_GENHDR_DIR}/qstr _
+-    COMMAND touch ${MICROPY_QSTRDEFS_SPLIT}
++    COMMAND ${CMAKE_COMMAND} -E touch ${MICROPY_QSTRDEFS_SPLIT}
+     DEPENDS ${MICROPY_QSTRDEFS_LAST}
+     VERBATIM
+     COMMAND_EXPAND_LISTS
+@@ -151,7 +151,7 @@ add_custom_command(
+ 
+ add_custom_command(
+     OUTPUT ${MICROPY_QSTRDEFS_PREPROCESSED}
+-    COMMAND cat ${MICROPY_QSTRDEFS_PY} ${MICROPY_QSTRDEFS_PORT} ${MICROPY_QSTRDEFS_COLLECTED} | sed "s/^Q(.*)/\"&\"/" | ${CMAKE_C_COMPILER} -E ${MICROPY_CPP_FLAGS} - | sed "s/^\\\"\\(Q(.*)\\)\\\"/\\1/" > ${MICROPY_QSTRDEFS_PREPROCESSED}
++    COMMAND ${Python3_EXECUTABLE} ${MICROPY_PY_DIR}/makeqstrdefs_preprocessed.py --compiler ${CMAKE_C_COMPILER} --output ${MICROPY_QSTRDEFS_PREPROCESSED} --inputs ${MICROPY_QSTRDEFS_PY} ${MICROPY_QSTRDEFS_PORT} ${MICROPY_QSTRDEFS_COLLECTED} --cflags ${MICROPY_CPP_FLAGS}
+     DEPENDS ${MICROPY_QSTRDEFS_PY}
+         ${MICROPY_QSTRDEFS_PORT}
+         ${MICROPY_QSTRDEFS_COLLECTED}
+@@ -172,7 +172,7 @@ add_custom_command(
+ add_custom_command(
+     OUTPUT ${MICROPY_MODULEDEFS_SPLIT}
+     COMMAND ${Python3_EXECUTABLE} ${MICROPY_PY_DIR}/makeqstrdefs.py split module ${MICROPY_GENHDR_DIR}/qstr.i.last ${MICROPY_GENHDR_DIR}/module _
+-    COMMAND touch ${MICROPY_MODULEDEFS_SPLIT}
++    COMMAND ${CMAKE_COMMAND} -E touch ${MICROPY_MODULEDEFS_SPLIT}
+     DEPENDS ${MICROPY_QSTRDEFS_LAST}
+     VERBATIM
+     COMMAND_EXPAND_LISTS
+@@ -198,7 +198,7 @@ add_custom_command(
+ add_custom_command(
+     OUTPUT ${MICROPY_ROOT_POINTERS_SPLIT}
+     COMMAND ${Python3_EXECUTABLE} ${MICROPY_PY_DIR}/makeqstrdefs.py split root_pointer ${MICROPY_GENHDR_DIR}/qstr.i.last ${MICROPY_GENHDR_DIR}/root_pointer _
+-    COMMAND touch ${MICROPY_ROOT_POINTERS_SPLIT}
++    COMMAND ${CMAKE_COMMAND} -E touch ${MICROPY_ROOT_POINTERS_SPLIT}
+     DEPENDS ${MICROPY_QSTRDEFS_LAST}
+     VERBATIM
+     COMMAND_EXPAND_LISTS
+@@ -224,7 +224,7 @@ add_custom_command(
+ add_custom_command(
+     OUTPUT ${MICROPY_COMPRESSED_SPLIT}
+     COMMAND ${Python3_EXECUTABLE} ${MICROPY_PY_DIR}/makeqstrdefs.py split compress ${MICROPY_QSTRDEFS_LAST} ${MICROPY_GENHDR_DIR}/compress _
+-    COMMAND touch ${MICROPY_COMPRESSED_SPLIT}
++    COMMAND ${CMAKE_COMMAND} -E touch ${MICROPY_COMPRESSED_SPLIT}
+     DEPENDS ${MICROPY_QSTRDEFS_LAST}
+     VERBATIM
+     COMMAND_EXPAND_LISTS

@@ -111,7 +111,7 @@ apply_patch "$ROOT/zephyr/patches/zephyr-4.4.0/0004-adc-stm32-fix-pcsel-preselec
 # on the repo-wide pin (v1.27.0, shared with nrf54lm20b); this build checks out
 # 19a1aa3 inside the submodule for the duration of the build and restores it
 # on exit, then applies the storage patch on top.
-MP_BASE=19a1aa3c1b87d42c7bbdff52aa3a80a161897c13
+MP_BASE=9939565d506a6a693bbcf984c26b7ee1c05a2a11
 MP_DIR="$ROOT/lib/micropython"
 if ! git -C "$MP_DIR" cat-file -e "$MP_BASE^{commit}" 2>/dev/null; then
     # The submodule checkout (actions/checkout fetch-depth:1) only has the
@@ -140,7 +140,12 @@ MP_PATCH_ROOT="$BUILD_DIR.micropython-backup"
 rm -rf "$MP_PATCH_ROOT"
 mkdir -p "$MP_PATCH_ROOT"
 for mp_file in ports/zephyr/Kconfig ports/zephyr/main.c \
-               ports/zephyr/machine_pwm.c ports/zephyr/zephyr_storage.c; do
+               ports/zephyr/machine_pwm.c ports/zephyr/zephyr_storage.c \
+               ports/zephyr/CMakeLists.txt ports/zephyr/modbluetooth_zephyr.c \
+               ports/zephyr/modules/boards/__init__.py \
+               ports/zephyr/modules/boards/xiao.py \
+               ports/zephyr/modules/boards/xiao_nrf54lm20a.py \
+               py/makeqstrdefs_preprocessed.py py/mkrules.cmake; do
     mp_target="$ROOT/lib/micropython/$mp_file"
     if [[ ! -f "$mp_target" ]]; then
         echo "error: missing micropython file: $mp_target" >&2
