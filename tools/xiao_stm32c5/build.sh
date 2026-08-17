@@ -105,6 +105,61 @@ apply_patch "$ROOT/zephyr/patches/zephyr-4.4.0/0003-flash-stm32-xspi-hal2-suppor
 apply_patch "$ROOT/zephyr/patches/zephyr-4.4.0/0004-adc-stm32-fix-pcsel-preselection.patch" \
     "$ZEPHYR_BASE/drivers/adc/adc_stm32.c"
 
+# Storage-recovery patch on the MicroPython submodule (official 19a1aa3).
+# paullbuth's validated firmware ran 19a1aa3 + these storage changes; without
+# them the board hangs before the console starts. The submodule gitlink stays
+# on the repo-wide pin (v1.27.0, shared with nrf54lm20b); this build checks out
+# 19a1aa3 inside the submodule for the duration of the build and restores it
+# on exit, then applies the storage patch on top.
+MP_BASE=19a1aa3c1b87d42c7bbdff52aa3a80a161897c13
+MP_DIR="$ROOT/lib/micropython"
+MP_ORIG_REF=$(git -C "$MP_DIR" rev-parse HEAD 2>/dev/null || true)
+if [[ -n "$MP_ORIG_REF" ]] && [[ "$MP_ORIG_REF" != "$MP_BASE" ]]; then
+    git -C "$MP_DIR" checkout -q "$MP_BASE" || {
+        echo "error: cannot checkout micropython $MP_BASE in $MP_DIR" >&2
+        exit 2
+    }
+    restore_micropython() {
+        git -C "$MP_DIR" checkout -q "$MP_ORIG_REF" 2>/dev/null || true
+        git -C "$MP_DIR" submodule update --init --recursive >/dev/null 2>&1 || true
+    }
+    trap 'restore_micropython; restore_patches' EXIT
+fi
+echo "  micropython checkout: $(git -C "$MP_DIR" rev-parse --short HEAD)"
+
+MP_PATCH_ROOT="$BUILD_DIR.micropython-backup"
+rm -rf "$MP_PATCH_ROOT"
+mkdir -p "$MP_PATCH_ROOT"
+for mp_file in ports/zephyr/Kconfig ports/zephyr/main.c \
+               ports/zephyr/machine_pwm.c ports/zephyr/zephyr_storage.c; do
+    mp_target="$ROOT/lib/micropython/$mp_file"
+    if [[ ! -f "$mp_target" ]]; then
+        echo "error: missing micropython file: $mp_target" >&2
+        exit 2
+    fi
+    mkdir -p "$MP_PATCH_ROOT/$(dirname "$mp_file")"
+    cp -a "$mp_target" "$MP_PATCH_ROOT/$mp_file"
+    RESTORE_TARGETS+=("$mp_target")
+done
+mkdir -p "$ROOT/lib/micropython/ports/zephyr/modules"
+mp_boot="$ROOT/lib/micropython/ports/zephyr/modules/_boot.py"
+if [[ ! -f "$mp_boot" ]]; then
+    touch "$MP_PATCH_ROOT/_boot.py.absent"
+    RESTORE_TARGETS+=("$mp_boot")
+fi
+if ! patch -d "$ROOT/lib/micropython" -p1 -N -r /dev/null \
+        < "$ROOT/micropython/patches/0001-stm32c5-storage-recovery.patch" 2>/dev/null; then
+    if patch -d "$ROOT/lib/micropython" -p1 -N --dry-run -R \
+            < "$ROOT/micropython/patches/0001-stm32c5-storage-recovery.patch" >/dev/null 2>&1; then
+        echo "  micropython storage patch already applied, skipping"
+    else
+        echo "error: micropython storage patch failed to apply" >&2
+        exit 2
+    fi
+else
+    echo "  applied micropython storage patch"
+fi
+
 export ZEPHYR_BASE
 
 if [[ -z "${ZEPHYR_TOOLCHAIN_VARIANT:-}" ]] && command -v arm-none-eabi-gcc >/dev/null 2>&1; then

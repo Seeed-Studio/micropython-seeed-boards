@@ -1,0 +1,234 @@
+diff --git a/ports/zephyr/Kconfig b/ports/zephyr/Kconfig
+index 6db0133f4f1..bfa63e36486 100644
+--- a/ports/zephyr/Kconfig
++++ b/ports/zephyr/Kconfig
+@@ -41,6 +41,24 @@ config MICROPY_VFS_LFS1
+ config MICROPY_VFS_LFS2
+ 	bool "LittleFs version 2 file system"
+ 
++config MICROPY_FLASH_AREA_BLOCK_SIZE
++	int "FlashArea block size"
++	depends on FLASH_MAP
++	default 4096
++	help
++		Logical block size passed to MicroPython's Zephyr FlashArea block
++		device. It must divide the storage partition size and must be
++		compatible with the erase geometry of the selected flash device.
++
++config MICROPY_FORMAT_EMPTY_STORAGE
++	bool "Format an erased storage partition on first boot"
++	depends on FLASH_MAP && MICROPY_VFS_LFS2 && MICROPY_FROZEN_MODULES
++	default n
++	help
++		When enabled, the Zephyr port runs the frozen _boot.py formatter
++		only when the storage partition is completely erased. A non-empty
++		partition that fails to mount is left untouched for diagnosis.
++
+ config MICROPY_FROZEN_MODULES
+ 	bool "Enable Frozen Modules"
+ 
+diff --git a/ports/zephyr/machine_pwm.c b/ports/zephyr/machine_pwm.c
+index 5720dac9caf..ce77306d6f0 100644
+--- a/ports/zephyr/machine_pwm.c
++++ b/ports/zephyr/machine_pwm.c
+@@ -60,7 +60,10 @@ static void configure_pwm(machine_pwm_obj_t *self) {
+         self->duty_ns = period;
+     }
+ 
+-    pwm_set(self->pwm, self->channel, period, self->duty_ns, self->flags);
++    int ret = pwm_set(self->pwm, self->channel, period, self->duty_ns, self->flags);
++    if (ret != 0) {
++        mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("PWM set failed (%d)"), ret);
++    }
+ }
+ 
+ /******************************************************************************/
+diff --git a/ports/zephyr/main.c b/ports/zephyr/main.c
+index f7ac997d92a..d856f1d3227 100644
+--- a/ports/zephyr/main.c
++++ b/ports/zephyr/main.c
+@@ -26,6 +26,7 @@
+  * THE SOFTWARE.
+  */
+ #include <stdint.h>
++#include <stdbool.h>
+ #include <stdio.h>
+ #include <string.h>
+ 
+@@ -64,6 +65,25 @@
+ 
+ static char heap[MICROPY_HEAP_SIZE];
+ 
++#if MICROPY_VFS && defined(CONFIG_FLASH_MAP) && FIXED_PARTITION_EXISTS(storage_partition)
++static bool storage_area_is_erased(const struct flash_area *area) {
++    uint8_t probe[64];
++
++    for (size_t offset = 0; offset < CONFIG_MICROPY_FLASH_AREA_BLOCK_SIZE; offset += sizeof(probe)) {
++        size_t length = MIN(sizeof(probe), CONFIG_MICROPY_FLASH_AREA_BLOCK_SIZE - offset);
++        if (flash_area_read(area, offset, probe, length) != 0) {
++            return false;
++        }
++        for (size_t i = 0; i < length; ++i) {
++            if (probe[i] != 0xff) {
++                return false;
++            }
++        }
++    }
++    return true;
++}
++#endif
++
+ #if defined(CONFIG_USB_DEVICE_STACK_NEXT)
+ extern int mp_usbd_init(void);
+ #endif // defined(CONFIG_USB_DEVICE_STACK_NEXT)
+@@ -113,7 +133,9 @@ static void vfs_init(void) {
+     mount_point_str = "/sd";
+     path_lib_qstr = MP_QSTR__slash_sd_slash_lib;
+     #elif defined(CONFIG_FLASH_MAP) && FIXED_PARTITION_EXISTS(storage_partition)
+-    mp_obj_t args[] = { MP_OBJ_NEW_SMALL_INT(FIXED_PARTITION_ID(storage_partition)), MP_OBJ_NEW_SMALL_INT(4096) };
++    const struct flash_area *storage_area = NULL;
++    int storage_area_open_ret = flash_area_open(FIXED_PARTITION_ID(storage_partition), &storage_area);
++    mp_obj_t args[] = { MP_OBJ_NEW_SMALL_INT(FIXED_PARTITION_ID(storage_partition)), MP_OBJ_NEW_SMALL_INT(CONFIG_MICROPY_FLASH_AREA_BLOCK_SIZE) };
+     bdev = MP_OBJ_TYPE_GET_SLOT(&zephyr_flash_area_type, make_new)(&zephyr_flash_area_type, ARRAY_SIZE(args), 0, args);
+     mount_point_str = "/flash";
+     path_lib_qstr = MP_QSTR__slash_flash_slash_lib;
+@@ -122,8 +144,20 @@ static void vfs_init(void) {
+     if ((bdev != NULL)) {
+         mount_point = mp_obj_new_str_from_cstr(mount_point_str);
+         ret = mp_vfs_mount_and_chdir_protected(bdev, mount_point);
+-        mp_obj_list_append(mp_sys_path, MP_OBJ_NEW_QSTR(path_lib_qstr));
+-        // TODO: if this failed, make a new file system and try to mount again
++
++        #if defined(CONFIG_MICROPY_FORMAT_EMPTY_STORAGE) && CONFIG_MICROPY_FORMAT_EMPTY_STORAGE && MICROPY_VFS_LFS2 && defined(CONFIG_FLASH_MAP) && FIXED_PARTITION_EXISTS(storage_partition)
++        if (ret != 0 && storage_area_open_ret == 0 && storage_area_is_erased(storage_area)) {
++            printf("MicroPython: storage is erased, formatting LittleFS2\n");
++            pyexec_frozen_module("_boot.py", false);
++            ret = mp_vfs_mount_and_chdir_protected(bdev, mount_point);
++        }
++        #endif
++
++        if (ret != 0) {
++            printf("MicroPython: storage mount failed (%d); partition left unchanged\n", ret);
++        } else {
++            mp_obj_list_append(mp_sys_path, MP_OBJ_NEW_QSTR(path_lib_qstr));
++        }
+     }
+ }
+ #endif // MICROPY_VFS
+@@ -158,6 +192,9 @@ int real_main(void) {
+ 
+     #if MICROPY_VFS
+     vfs_init();
++    // Run frozen _boot.py on every boot: handles first-boot format and
++    // stale-filesystem-copy cleanup after firmware upgrades.
++    pyexec_frozen_module("_boot.py", false);
+     #endif
+ 
+     #if MICROPY_MODULE_FROZEN || MICROPY_VFS
+diff --git a/ports/zephyr/modules/_boot.py b/ports/zephyr/modules/_boot.py
+new file mode 100644
+index 00000000000..af5d787d948
+--- /dev/null
++++ b/ports/zephyr/modules/_boot.py
+@@ -0,0 +1,86 @@
++# _boot.py - MicroPython startup helper (frozen into firmware).
++#
++# Called from main.c on every boot:
++#   1. First boot (blank storage): format the LittleFS partition.
++#   2. Every boot: clean up stale filesystem copies of frozen modules
++#      so that ``import`` always resolves to the frozen (firmware) version.
++#
++# After a firmware upgrade the frozen content changes but the filesystem
++# is preserved.  Without cleanup an old .py on /flash/ would shadow the
++# updated frozen module because MicroPython checks sys.path before frozen.
++#
++# zephyr.FlashArea.ID_storage resolves to the storage_partition fixed-partition
++# id at build time (0 on XIAO STM32C5) -- do NOT hardcode a numeric id, which
++# would target the wrong partition on other boards (e.g. nRF54L15).
++
++import os
++
++# -- Firmware version --
++# Bump this when frozen modules change so devices detect the upgrade.
++_FW_VERSION = "0.2.0"
++
++# Paths on the LittleFS filesystem that mirror frozen modules.
++_FROZEN_FILES = (
++    "_boot.py",
++    "xiao_stm32c5_full_test.py",
++    "boards/xiao.py",
++    "boards/xiao_stm32c5.py",
++)
++
++_MARKER = "/flash/.fw_version"
++
++
++def _read_marker():
++    try:
++        with open(_MARKER) as f:
++            return f.read().strip()
++    except Exception:
++        return None
++
++
++def _write_marker():
++    try:
++        with open(_MARKER, "w") as f:
++            f.write(_FW_VERSION)
++    except Exception:
++        pass
++
++
++def _cleanup():
++    """Delete filesystem copies of frozen modules so imports resolve
++    to the (updated) frozen versions compiled into the firmware."""
++    removed = 0
++    for name in _FROZEN_FILES:
++        path = "/flash/" + name
++        try:
++            os.remove(path)
++            removed += 1
++        except OSError:
++            pass
++    # Prune empty directories left behind.
++    for d in ("boards",):
++        try:
++            os.rmdir("/flash/" + d)
++        except OSError:
++            pass
++    if removed:
++        print("boot: cleaned {0} stale frozen-module copy(ies)".format(removed))
++
++
++# ---- main ----
++
++if _read_marker() is None:
++    # First boot or manually wiped storage -- format the partition.
++    try:
++        import zephyr
++        bdev = zephyr.FlashArea(zephyr.FlashArea.ID_storage, 4096)
++        os.VfsLfs2.mkfs(bdev)
++        print("boot: formatted storage partition")
++    except Exception as e:
++        print("boot: format storage failed:", e)
++    _write_marker()
++else:
++    # Normal boot -- clean stale frozen-module copies on firmware upgrade.
++    if _read_marker() != _FW_VERSION:
++        _cleanup()
++        _write_marker()
+diff --git a/ports/zephyr/zephyr_storage.c b/ports/zephyr/zephyr_storage.c
+index 40bcef73384..e9595b33154 100644
+--- a/ports/zephyr/zephyr_storage.c
++++ b/ports/zephyr/zephyr_storage.c
+@@ -182,6 +182,10 @@ static mp_obj_t zephyr_flash_area_make_new(const mp_obj_type_t *type, size_t n_a
+         mp_raise_ValueError(MP_ERROR_TEXT("unable to open flash area"));
+     }
+ 
++    if (self->area->fa_size % self->block_size != 0) {
++        mp_raise_ValueError(MP_ERROR_TEXT("flash area size not aligned"));
++    }
++
+     self->block_count = self->area->fa_size / self->block_size;
+ 
+     return MP_OBJ_FROM_PTR(self);
