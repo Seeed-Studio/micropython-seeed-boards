@@ -149,7 +149,7 @@ new file mode 100644
 index 000000000..890e0a590
 --- /dev/null
 +++ b/ports/zephyr/src/xiao_nrf54lm20b_imu_power.c
-@@ -0,0 +1,56 @@
+@@ -0,0 +1,59 @@
 +/*
 + * This file is part of the MicroPython project, http://micropython.org/
 + *
