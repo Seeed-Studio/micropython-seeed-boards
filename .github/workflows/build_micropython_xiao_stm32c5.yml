@@ -37,9 +37,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ninja-build gcc-arm-none-eabi flex bison \
             libyaml-dev pkg-config
-          # Ninja comes from apt (1.11.1, same build as the validated env);
-          # the pip wheel reports "1.11.1.git.kitware.jobserver-1" instead.
-          python -m pip install west==1.5.0 cmake==3.31.2 \
+          # Ninja 1.11.1 from pip (kitware build of the 1.11.1 sources; its
+          # --version string carries a .git suffix). Ubuntu 24.04 apt ships
+          # 1.13.2 now, which drifts from the validated environment.
+          python -m pip install west==1.5.0 cmake==3.31.2 ninja==1.11.1 \
             jsonschema pyelftools requests PyYAML
           curl -sL https://github.com/dgibson/dtc/archive/refs/tags/v1.7.0.tar.gz \
             | tar xz -C /tmp
@@ -59,7 +60,7 @@ jobs:
           test "$(python --version 2>&1)" = "Python 3.12.3"
           test "$(west --version)" = "West version: v1.5.0"
           test "$(cmake --version | head -1)" = "cmake version 3.31.2"
-          test "$(ninja --version)" = "1.11.1"
+          ninja --version | grep -q "^1\.11\.1" || { echo "ninja not 1.11.1"; exit 1; }
           test "$(dtc --version)" = "Version: DTC 1.7.0"
           test "$(arm-none-eabi-gcc --version | head -1 | grep -o '13\.2\.1')" = "13.2.1"
 
