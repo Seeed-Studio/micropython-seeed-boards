@@ -23,19 +23,50 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.12.3'
 
-      - name: Install host tools
+      - name: Install host tools (pinned to the validated build environment)
+        # Replicates the handoff-validated toolchain exactly:
+        #   Python 3.12.3 / west 1.5.0 / gnuarmemb GCC 13.2.1 (apt) /
+        #   CMake 3.31.2 / Ninja 1.11.1 / DTC 1.7.0
+        # CI-built firmware from looser tool versions produced a binary that
+        # hung before any console output on the real board; the locally
+        # validated build used the versions pinned below. DTC 1.7.0 is newer
+        # than Ubuntu 24.04 apt (1.6.1), so it is built from source.
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build device-tree-compiler gcc-arm-none-eabi
-          python -m pip install --upgrade west jsonschema pyelftools requests PyYAML
+          sudo apt-get install -y ninja-build gcc-arm-none-eabi flex bison \
+            libyaml-dev pkg-config
+          python -m pip install west==1.5.0 cmake==3.31.2 ninja==1.11.1 \
+            jsonschema pyelftools requests PyYAML
+          curl -sL https://github.com/dgibson/dtc/archive/refs/tags/v1.7.0.tar.gz \
+            | tar xz -C /tmp
+          make -C /tmp/dtc-1.7.0 -j2 NO_VALGRIND=1 NO_YAML=1 >/dev/null
+          make -C /tmp/dtc-1.7.0 PREFIX="$HOME/.local" NO_VALGRIND=1 NO_YAML=1 install >/dev/null
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Verify pinned tool versions
+        run: |
+          set -e
+          echo "python: $(python --version 2>&1)"
+          echo "west:   $(west --version)"
+          echo "cmake:  $(cmake --version | head -1)"
+          echo "ninja:  $(ninja --version)"
+          echo "dtc:    $(dtc --version)"
+          echo "gcc:    $(arm-none-eabi-gcc --version | head -1)"
+          test "$(python --version 2>&1)" = "Python 3.12.3"
+          test "$(west --version)" = "West version: v1.5.0"
+          test "$(cmake --version | head -1)" = "cmake version 3.31.2"
+          test "$(ninja --version)" = "1.11.1"
+          test "$(dtc --version)" = "Version: DTC 1.7.0"
+          test "$(arm-none-eabi-gcc --version | head -1 | grep -o '13\.2\.1')" = "13.2.1"
 
       - name: Set up Zephyr 4.4.0
         run: |
           west init -m https://github.com/zephyrproject-rtos/zephyr --mr v4.4.0 zephyrproject
           cd zephyrproject
           west update
+          west list
 
       - name: Build UF2
         env:
