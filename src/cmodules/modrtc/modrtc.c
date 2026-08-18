@@ -60,7 +60,6 @@ static mp_obj_t rtc_deinit(mp_obj_t self_in);
 
 static rtc_obj_t rtc_singleton;
 static bool rtc_initialized = false;
-static mp_obj_t rtc_software_datetime;
 
 static int set_rtc_time(const struct device *dev, int year, int month, int day, 
                         int hour, int minute, int second)
@@ -141,37 +140,21 @@ static mp_obj_t rtc_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_
 static mp_obj_t rtc_set_datetime(mp_obj_t self_in, mp_obj_t datetime_in)
 {
     rtc_obj_t *self = MP_OBJ_TO_PTR(self_in);
-
-    mp_obj_t *items;
-    size_t len;
-    mp_obj_get_array(datetime_in, &len, &items);
-    if (len != 6 && len != 8) {
-        mp_raise_ValueError(MP_ERROR_TEXT("datetime must have 6 or 8 items"));
+    
+    if (!self->rtc_dev) {
+        mp_raise_msg(&mp_type_OSError, "RTC device not initialized");
     }
-
+    
+    mp_obj_t *items;
+    mp_obj_get_array_fixed_n(datetime_in, 6, &items);
+    
     int year = mp_obj_get_int(items[0]);
     int month = mp_obj_get_int(items[1]);
     int day = mp_obj_get_int(items[2]);
-    int hour = mp_obj_get_int(items[len == 8 ? 4 : 3]);
-    int minute = mp_obj_get_int(items[len == 8 ? 5 : 4]);
-    int second = mp_obj_get_int(items[len == 8 ? 6 : 5]);
-
-    if (!self->rtc_dev) {
-        // The nRF54LM20B board has no hardware RTC device node.  Preserve a
-        // standard MicroPython RTC value for host file-transfer tools and
-        // board scripts for the duration of the current boot.
-        if (len == 8) {
-            rtc_software_datetime = datetime_in;
-        } else {
-            mp_obj_t tuple[8] = {
-                items[0], items[1], items[2], MP_OBJ_NEW_SMALL_INT(0),
-                items[3], items[4], items[5], MP_OBJ_NEW_SMALL_INT(0),
-            };
-            rtc_software_datetime = mp_obj_new_tuple(8, tuple);
-        }
-        return mp_const_none;
-    }
-
+    int hour = mp_obj_get_int(items[3]);
+    int minute = mp_obj_get_int(items[4]);
+    int second = mp_obj_get_int(items[5]);
+    
     int ret = set_rtc_time(self->rtc_dev, year, month, day, hour, minute, second);
     if (ret != 0) {
         mp_raise_OSError(-ret);
@@ -186,15 +169,7 @@ static mp_obj_t rtc_get_datetime(mp_obj_t self_in)
     rtc_obj_t *self = MP_OBJ_TO_PTR(self_in);
     
     if (!self->rtc_dev) {
-        if (rtc_software_datetime == MP_OBJ_NULL) {
-            mp_obj_t tuple[8] = {
-                MP_OBJ_NEW_SMALL_INT(2000), MP_OBJ_NEW_SMALL_INT(1), MP_OBJ_NEW_SMALL_INT(1),
-                MP_OBJ_NEW_SMALL_INT(5), MP_OBJ_NEW_SMALL_INT(0), MP_OBJ_NEW_SMALL_INT(0),
-                MP_OBJ_NEW_SMALL_INT(0), MP_OBJ_NEW_SMALL_INT(0),
-            };
-            rtc_software_datetime = mp_obj_new_tuple(8, tuple);
-        }
-        return rtc_software_datetime;
+        mp_raise_msg(&mp_type_OSError, "RTC device not initialized");
     }
     
     struct rtc_time rtc_time;
@@ -217,14 +192,6 @@ static mp_obj_t rtc_get_datetime(mp_obj_t self_in)
     return mp_obj_new_tuple(6, tuple);
 }
 MP_DEFINE_CONST_FUN_OBJ_1(rtc_get_datetime_obj, rtc_get_datetime);
-
-static mp_obj_t rtc_datetime(size_t n_args, const mp_obj_t *args) {
-    if (n_args == 1) {
-        return rtc_get_datetime(args[0]);
-    }
-    return rtc_set_datetime(args[0], args[1]);
-}
-MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(rtc_datetime_obj, 1, 2, rtc_datetime);
 
 static mp_obj_t rtc_deinit(mp_obj_t self_in)
 {
@@ -261,7 +228,6 @@ MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(rtc_memory_obj, 1, 2, rtc_memory);
 static const mp_rom_map_elem_t rtc_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_set_datetime), MP_ROM_PTR(&rtc_set_datetime_obj) },
     { MP_ROM_QSTR(MP_QSTR_get_datetime), MP_ROM_PTR(&rtc_get_datetime_obj) },
-    { MP_ROM_QSTR(MP_QSTR_datetime), MP_ROM_PTR(&rtc_datetime_obj) },
     { MP_ROM_QSTR(MP_QSTR_deinit), MP_ROM_PTR(&rtc_deinit_obj) },
     #if MICROPY_HW_RTC_USER_MEM_MAX > 0
     { MP_ROM_QSTR(MP_QSTR_memory), MP_ROM_PTR(&rtc_memory_obj) },
