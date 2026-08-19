@@ -42,7 +42,8 @@ jobs:
           # 1.13.2 now, which drifts from the validated environment.
           python -m pip install west==1.5.0 cmake==3.31.2 ninja==1.11.1 \
             jsonschema pyelftools requests PyYAML
-          curl -sL https://github.com/dgibson/dtc/archive/refs/tags/v1.7.0.tar.gz \
+          curl -sL --retry 3 --max-time 120 \
+            https://github.com/dgibson/dtc/archive/refs/tags/v1.7.0.tar.gz \
             | tar xz -C /tmp
           make -C /tmp/dtc-1.7.0 -j2 NO_VALGRIND=1 NO_YAML=1 NO_PYTHON=1 >/dev/null
           make -C /tmp/dtc-1.7.0 PREFIX="$HOME/.local" NO_VALGRIND=1 NO_YAML=1 NO_PYTHON=1 install >/dev/null
