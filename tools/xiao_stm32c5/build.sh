@@ -185,6 +185,33 @@ else
     echo "  applied micropython storage patch"
 fi
 
+# Time/RTC patch (0002) on the same MicroPython checkout: expose
+# time.localtime (mpconfigport.h + modtime.c) and machine.RTC (modmachine.c,
+# guarded by CONFIG_BOARD_XIAO_STM32C5 so other boards are unaffected).
+# Mirrors the nRF54LM20B MicroPython fork commit 94414dc8a; applied after
+# the storage patch and restored through the same backup/restore discipline.
+for mp_file in ports/zephyr/modtime.c ports/zephyr/modmachine.c \
+               ports/zephyr/mpconfigport.h; do
+    mp_target="$ROOT/lib/micropython/$mp_file"
+    if [[ -f "$mp_target" ]]; then
+        mkdir -p "$MP_PATCH_ROOT/$(dirname "$mp_file")"
+        cp -a "$mp_target" "$MP_PATCH_ROOT/$mp_file"
+        RESTORE_TARGETS+=("$mp_target")
+    fi
+done
+if ! patch -d "$ROOT/lib/micropython" -p1 -N -r /dev/null \
+        < "$ROOT/micropython/patches/0002-stm32c5-time-rtc.patch" 2>/dev/null; then
+    if patch -d "$ROOT/lib/micropython" -p1 -N --dry-run -R \
+            < "$ROOT/micropython/patches/0002-stm32c5-time-rtc.patch" >/dev/null 2>&1; then
+        echo "  micropython time/rtc patch already applied, skipping"
+    else
+        echo "error: micropython time/rtc patch failed to apply" >&2
+        exit 2
+    fi
+else
+    echo "  applied micropython time/rtc patch"
+fi
+
 export ZEPHYR_BASE
 
 if [[ -z "${ZEPHYR_TOOLCHAIN_VARIANT:-}" ]] && command -v arm-none-eabi-gcc >/dev/null 2>&1; then
