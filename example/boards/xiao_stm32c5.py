@@ -9,6 +9,9 @@ class xiao_stm32c5:
             5: ("gpiob", 6),
             6: ("gpioa", 9),
             7: ("gpioa", 10),
+            # D8/D9/D10 are the header SPI pins, but D8 (PA15) has no
+            # SPI-SCK alternate function, so boards.xiao drives them with
+            # machine.SoftSPI instead of a hardware SPI peripheral.
             8: ("gpioa", 15),
             9: ("gpiob", 0),
             10: ("gpiob", 15),

@@ -7,7 +7,7 @@ if "stm32c5" in _machine_name:
     from ADC import ADC
     from CAN import CAN
     from RTC import RTC
-    from machine import I2C
+    from machine import I2C, SoftSPI
     from boards.xiao_stm32c5 import xiao_stm32c5 as xiao
 elif "nrf54lm20b" in _machine_name:
     from ADC import ADC
@@ -87,6 +87,37 @@ if "ra4m1" in _machine_name:
                 )
             except Exception:
                 raise ValueError("Invalid spi")
+elif "stm32c5" in _machine_name:
+    # The XIAO header exposes no hardware SPI on this board: D8 (PA15)
+    # carries no SPI-SCK alternate function (STM32C5A3 DS15137 Table 14),
+    # so the header SPI pins are bit-banged. The Zephyr port's SoftSPI
+    # requires machine.Pin objects (mp_hal_get_pin_obj), hence the XiaoPin
+    # wrappers instead of the raw xiao.pin() tuples used on ra4m1.
+    class XiaoI2C(I2C):
+        def __init__(self, i2c_num, sda_num=None, scl_num=None, freq=400000):
+            try:
+                super().__init__(xiao.i2c(i2c_num))
+            except Exception:
+                raise ValueError("Invalid i2c")
+
+    class XiaoSPI(SoftSPI):
+        def __init__(self, spi_num=None, baudrate_num=500000,
+                     sck_num=8, mosi_num=10, miso_num=9,
+                     polarity=0, phase=0):
+            try:
+                super().__init__(
+                    baudrate=baudrate_num,
+                    polarity=polarity,
+                    phase=phase,
+                    bits=8,
+                    firstbit=SoftSPI.MSB,
+                    sck=XiaoPin(sck_num, Pin.OUT),
+                    mosi=XiaoPin(mosi_num, Pin.OUT),
+                    miso=XiaoPin(miso_num, Pin.IN),
+                )
+            except Exception:
+                raise ValueError("Invalid spi")
+
 else:
     class XiaoI2C(I2C):
         if platform == "esp32":
