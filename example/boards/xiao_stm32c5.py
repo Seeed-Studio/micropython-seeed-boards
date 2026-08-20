@@ -9,7 +9,9 @@ class xiao_stm32c5:
             5: ("gpiob", 6),
             6: ("gpioa", 9),
             7: ("gpioa", 10),
-            8: ("gpioa", 15),
+            # Header SPI = hardware SPI3: D8/PE2 = SCK, D9/PB0 = MISO,
+            # D10/PB15 = MOSI (current board revision).
+            8: ("gpioe", 2),
             9: ("gpiob", 0),
             10: ("gpiob", 15),
             11: ("gpiob", 8),
@@ -18,9 +20,9 @@ class xiao_stm32c5:
             14: ("gpiob", 13),
             15: ("gpiob", 14),
             "led": ("gpiob", 12),
-            "bat_en": ("gpioe", 2),
+            "bat_en": ("gpioa", 15),
             # Compatibility alias used by the generic battery example.
-            "vbat_en": ("gpioe", 2),
+            "vbat_en": ("gpioa", 15),
             # The IMU bus is fixed by Zephyr pinctrl; these aliases are
             # provided for scripts that also refer to the physical pins.
             "imu_sda": ("gpiob", 4),
@@ -53,6 +55,14 @@ class xiao_stm32c5:
             "i2c1": "i2c2",
         }
         return xiao_i2c[i2c]
+
+    def spi(spi):
+        # Hardware SPI3 on the header: SCK = D8/PE2, MISO = D9/PB0,
+        # MOSI = D10/PB15 (current board revision).
+        xiao_spi = {
+            "spi0": "spi3",
+        }
+        return xiao_spi[spi]
 
     def uart(uart):
         xiao_uart = {

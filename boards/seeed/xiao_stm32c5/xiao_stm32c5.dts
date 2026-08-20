@@ -25,8 +25,8 @@
 	compatible = "seeed,xiao-stm32c5";
 
 	chosen {
-		zephyr,console = &usart1;
-		zephyr,shell-uart = &usart1;
+		zephyr,console = &cdc_acm_uart0;
+		zephyr,shell-uart = &cdc_acm_uart0;
 		zephyr,sram = &sram1;
 		zephyr,flash = &flash0;
 		zephyr,code-partition = &slot0_partition;
@@ -40,6 +40,10 @@
 		flash1 = &ext_flash;
 		imu0 = &lsm6ds3tr_c;
 		imu-heater = &imu_heater_pwm;
+		/* src/cmodules/modrtc (machine.RTC / RTC module) resolves the
+		 * default device through DT_ALIAS(rtc); without this entry the
+		 * RTC singleton finds no device and clock sync raises OSError. */
+		rtc = &rtc;
 	};
 
 	leds: leds {
@@ -361,6 +365,19 @@
 	status = "okay";
 };
 
+/*
+ * XIAO header SPI (D8/D9/D10) on SPI3: SCK = PE2 (AF5), MISO = PB0 (AF5),
+ * MOSI = PB15 (AF7); pin nodes come from the hal_stm32 c5 pinctrl dtsi.
+ * Current board revision wires D8 to PE2; the earlier revision routed D8
+ * to PA15, which has no SPI-SCK alternate function (DS15137 Table 14) -
+ * on that old pinout the header has no hardware SPI.
+ */
+&spi3 {
+	pinctrl-0 = <&spi3_sck_pe2 &spi3_miso_pb0 &spi3_mosi_pb15>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
 &rtc {
 	clocks = <&rcc STM32_CLOCK(APB3, 21)>,
 		 <&rcc STM32_SRC_LSE RTC_SEL(1)>;
@@ -392,7 +409,7 @@ zephyr_udc0: &usb {};
  * (uf2_dfu_reset module) listens for SET_LINE_CODING on this interface.
  */
 &zephyr_udc0 {
-	cdc_acm_uart0 {
+	cdc_acm_uart0: cdc_acm_uart0 {
 		compatible = "zephyr,cdc-acm-uart";
 		label = "Zephyr USB CDC-ACM";
 	};

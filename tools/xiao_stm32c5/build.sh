@@ -105,6 +105,113 @@ apply_patch "$ROOT/zephyr/patches/zephyr-4.4.0/0003-flash-stm32-xspi-hal2-suppor
 apply_patch "$ROOT/zephyr/patches/zephyr-4.4.0/0004-adc-stm32-fix-pcsel-preselection.patch" \
     "$ZEPHYR_BASE/drivers/adc/adc_stm32.c"
 
+# Storage-recovery patch on the MicroPython submodule (official 19a1aa3).
+# paullbuth's validated firmware ran 19a1aa3 + these storage changes; without
+# them the board hangs before the console starts. The submodule gitlink stays
+# on the repo-wide pin (v1.27.0, shared with nrf54lm20b); this build checks out
+# 19a1aa3 inside the submodule for the duration of the build and restores it
+# on exit, then applies the storage patch on top.
+MP_BASE=9939565d50acfcd68429e86b6276a590197db951  # official micropython, 2025-08-26, ancestor of master
+MP_DIR="$ROOT/lib/micropython"
+if ! git -C "$MP_DIR" cat-file -e "$MP_BASE^{commit}" 2>/dev/null; then
+    # The submodule checkout (actions/checkout fetch-depth:1) only holds the
+    # pinned commit. $MP_BASE is an ancestor of official micropython/master,
+    # so it can be reached by deepening the fetch of master. Plain fetch and
+    # --unshallow both fail on this shallow clone setup, so deepen explicitly.
+    for depth in 2000 8000 20000; do
+        echo "  fetching micropython history (depth $depth)..."
+        if git -C "$MP_DIR" fetch -q --depth="$depth" origin master; then
+            git -C "$MP_DIR" cat-file -e "$MP_BASE^{commit}" 2>/dev/null && break
+        fi
+    done
+    if ! git -C "$MP_DIR" cat-file -e "$MP_BASE^{commit}" 2>/dev/null; then
+        # Last resort: unshallow completely.
+        git -C "$MP_DIR" fetch -q --unshallow origin 2>&1 | head -3 || true
+        git -C "$MP_DIR" fetch -q origin || true
+    fi
+    if ! git -C "$MP_DIR" cat-file -e "$MP_BASE^{commit}" 2>/dev/null; then
+        echo "error: micropython $MP_BASE unreachable (fetch-deepen failed)" >&2
+        exit 2
+    fi
+fi
+MP_ORIG_REF=$(git -C "$MP_DIR" rev-parse HEAD 2>/dev/null || true)
+if [[ -n "$MP_ORIG_REF" ]] && [[ "$MP_ORIG_REF" != "$MP_BASE" ]]; then
+    git -C "$MP_DIR" checkout -q "$MP_BASE" || {
+        echo "error: cannot checkout micropython $MP_BASE in $MP_DIR" >&2
+        exit 2
+    }
+    restore_micropython() {
+        git -C "$MP_DIR" checkout -q "$MP_ORIG_REF" 2>/dev/null || true
+        git -C "$MP_DIR" submodule update --init --recursive >/dev/null 2>&1 || true
+    }
+    trap 'restore_micropython; restore_patches' EXIT
+fi
+echo "  micropython checkout: $(git -C "$MP_DIR" rev-parse --short HEAD)"
+
+# Backup files the patch MODIFIES (new files are created by the patch
+# itself; track them for removal on restore).
+MP_PATCH_ROOT="$BUILD_DIR.micropython-backup"
+rm -rf "$MP_PATCH_ROOT"
+mkdir -p "$MP_PATCH_ROOT"
+for mp_file in ports/zephyr/Kconfig ports/zephyr/main.c \
+               ports/zephyr/machine_pwm.c ports/zephyr/zephyr_storage.c \
+               ports/zephyr/CMakeLists.txt ports/zephyr/modbluetooth_zephyr.c \
+               py/mkrules.cmake; do
+    mp_target="$ROOT/lib/micropython/$mp_file"
+    if [[ -f "$mp_target" ]]; then
+        mkdir -p "$MP_PATCH_ROOT/$(dirname "$mp_file")"
+        cp -a "$mp_target" "$MP_PATCH_ROOT/$mp_file"
+        RESTORE_TARGETS+=("$mp_target")
+    fi
+done
+# New files the patch creates — track them so we can rm on restore.
+for mp_new in ports/zephyr/modules/_boot.py \
+              ports/zephyr/modules/boards/__init__.py \
+              ports/zephyr/modules/boards/xiao.py \
+              ports/zephyr/modules/boards/xiao_nrf54lm20a.py \
+              py/makeqstrdefs_preprocessed.py; do
+    RESTORE_TARGETS+=("$ROOT/lib/micropython/$mp_new")
+done
+if ! patch -d "$ROOT/lib/micropython" -p1 -N -r /dev/null \
+        < "$ROOT/micropython/patches/0001-stm32c5-storage-recovery.patch" 2>/dev/null; then
+    if patch -d "$ROOT/lib/micropython" -p1 -N --dry-run -R \
+            < "$ROOT/micropython/patches/0001-stm32c5-storage-recovery.patch" >/dev/null 2>&1; then
+        echo "  micropython storage patch already applied, skipping"
+    else
+        echo "error: micropython storage patch failed to apply" >&2
+        exit 2
+    fi
+else
+    echo "  applied micropython storage patch"
+fi
+
+# Time/RTC patch (0002) on the same MicroPython checkout: expose
+# time.localtime (mpconfigport.h + modtime.c) and machine.RTC (modmachine.c,
+# guarded by CONFIG_BOARD_XIAO_STM32C5 so other boards are unaffected).
+# Mirrors the nRF54LM20B MicroPython fork commit 94414dc8a; applied after
+# the storage patch and restored through the same backup/restore discipline.
+for mp_file in ports/zephyr/modtime.c ports/zephyr/modmachine.c \
+               ports/zephyr/mpconfigport.h; do
+    mp_target="$ROOT/lib/micropython/$mp_file"
+    if [[ -f "$mp_target" ]]; then
+        mkdir -p "$MP_PATCH_ROOT/$(dirname "$mp_file")"
+        cp -a "$mp_target" "$MP_PATCH_ROOT/$mp_file"
+        RESTORE_TARGETS+=("$mp_target")
+    fi
+done
+if ! patch -d "$ROOT/lib/micropython" -p1 -N -r /dev/null \
+        < "$ROOT/micropython/patches/0002-stm32c5-time-rtc.patch" 2>/dev/null; then
+    if patch -d "$ROOT/lib/micropython" -p1 -N --dry-run -R \
+            < "$ROOT/micropython/patches/0002-stm32c5-time-rtc.patch" >/dev/null 2>&1; then
+        echo "  micropython time/rtc patch already applied, skipping"
+    else
+        echo "error: micropython time/rtc patch failed to apply" >&2
+        exit 2
+    fi
+else
+    echo "  applied micropython time/rtc patch"
+fi
+
 export ZEPHYR_BASE
 
 if [[ -z "${ZEPHYR_TOOLCHAIN_VARIANT:-}" ]] && command -v arm-none-eabi-gcc >/dev/null 2>&1; then

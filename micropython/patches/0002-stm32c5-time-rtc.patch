@@ -1,0 +1,56 @@
+diff -Naur a/ports/zephyr/modmachine.c b/ports/zephyr/modmachine.c
+--- a/ports/zephyr/modmachine.c	2026-08-19 19:31:30.653981900 +0800
++++ b/ports/zephyr/modmachine.c	2026-08-19 19:31:30.847871200 +0800
+@@ -34,6 +34,14 @@
+ 
+ #include "modmachine.h"
+ 
++#if defined(CONFIG_BOARD_XIAO_STM32C5)
++extern const mp_obj_type_t rtc_type;
++#define MICROPY_PY_MACHINE_RTC_ENTRY \
++    { MP_ROM_QSTR(MP_QSTR_RTC), MP_ROM_PTR(&rtc_type) },
++#else
++#define MICROPY_PY_MACHINE_RTC_ENTRY
++#endif
++
+ #ifdef CONFIG_REBOOT
+ #define MICROPY_PY_MACHINE_RESET_ENTRY { MP_ROM_QSTR(MP_QSTR_reset), MP_ROM_PTR(&machine_reset_obj) },
+ #else
+@@ -42,6 +50,7 @@
+ 
+ #define MICROPY_PY_MACHINE_EXTRA_GLOBALS \
+     MICROPY_PY_MACHINE_RESET_ENTRY \
++    MICROPY_PY_MACHINE_RTC_ENTRY \
+     { MP_ROM_QSTR(MP_QSTR_reset_cause), MP_ROM_PTR(&machine_reset_cause_obj) }, \
+     { MP_ROM_QSTR(MP_QSTR_Pin), MP_ROM_PTR(&machine_pin_type) }, \
+     { MP_ROM_QSTR(MP_QSTR_Timer), MP_ROM_PTR(&machine_timer_type) }, \
+diff -Naur a/ports/zephyr/modtime.c b/ports/zephyr/modtime.c
+--- a/ports/zephyr/modtime.c	2026-08-19 19:31:30.607425200 +0800
++++ b/ports/zephyr/modtime.c	2026-08-19 19:31:30.747751300 +0800
+@@ -28,6 +28,7 @@
+ #include <zephyr/kernel.h>
+ 
+ #include "py/obj.h"
++#include "shared/timeutils/timeutils.h"
+ 
+ static mp_obj_t mp_time_time_get(void) {
+     /* The absence of FP support is deliberate. The Zephyr port uses
+@@ -36,3 +37,7 @@
+      */
+     return mp_obj_new_int(k_uptime_get() / 1000);
+ }
++
++static void mp_time_localtime_get(timeutils_struct_time_t *tm) {
++    timeutils_seconds_since_epoch_to_struct_time(k_uptime_get() / 1000, tm);
++}
+diff -Naur a/ports/zephyr/mpconfigport.h b/ports/zephyr/mpconfigport.h
+--- a/ports/zephyr/mpconfigport.h	2026-08-19 19:31:30.701073800 +0800
++++ b/ports/zephyr/mpconfigport.h	2026-08-19 19:31:30.793714100 +0800
+@@ -98,6 +98,7 @@
+ #define MICROPY_PY_HASHLIB          (1)
+ #define MICROPY_PY_OS               (1)
+ #define MICROPY_PY_TIME_TIME_TIME_NS (1)
++#define MICROPY_PY_TIME_GMTIME_LOCALTIME_MKTIME (1)
+ #define MICROPY_PY_TIME_INCLUDEFILE "ports/zephyr/modtime.c"
+ #define MICROPY_PY_ZEPHYR           (1)
+ #define MICROPY_PY_ZSENSOR          (1)

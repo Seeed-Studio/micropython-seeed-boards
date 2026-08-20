@@ -2,19 +2,21 @@
 
 ## Build evidence
 
-- MicroPython port: Zephyr
+- MicroPython port: Zephyr (pinned upstream base + storage/time-RTC patches)
 - Zephyr framework: 4.4.0
 - UF2 application address: `0x08008000`
 - UF2 family ID: `0x00C5C5C5`
 - UF2 volume label: `XIAOC5BOOT`
-- REPL: USART1, 115200 8-N-1
+- REPL: USB CDC-ACM on the on-board USB port (any baud rate)
 
 ## Included capabilities
 
-The image includes MicroPython GPIO, UART, I2C, ADC, PWM, LittleFS, RTC,
-board helpers, and a Zephyr CAN/FDCAN wrapper with bounded receive timeout.
-The interactive board test script is included separately under `tests/` in the
-package and is copied to the device filesystem by the user.
+MicroPython GPIO, UART, I2C, ADC, PWM, LittleFS, and CAN/FDCAN with
+bounded receive timeout; `time.localtime` / `time.gmtime` / `time.mktime`
+and `machine.RTC` (LSE-backed hardware RTC, with software fallback);
+hardware SPI3 on the header (D8/PE2 SCK, D9/PB0 MISO, D10/PB15 MOSI);
+frozen XIAO board helpers (`boards.xiao`); test scripts for peripherals,
+CAN, and SPI loopback under `tests/`.
 
 ## Hardware qualification
 
@@ -28,7 +30,8 @@ formal release:
 - Ten update/boot cycles:
 - Upgrade and rollback:
 - Wrong/incompatible UF2 recovery:
-- UART / ADC / PWM / FDCAN / I2C / LED / GPIO / IMU / battery results:
+- UART / ADC / PWM / FDCAN / I2C / LED / GPIO / IMU / battery / SPI results:
 
-Known limitations: USB CDC REPL and 1200-bps automatic bootloader entry are
-not part of v1; D8-D10 are not advertised as hardware SPI pins.
+Known limitations: `time.time()` counts from boot, wall-clock time is kept
+by `machine.RTC()`; the header SPI pins are fixed by the device tree
+(no runtime pin remapping for SPI).
