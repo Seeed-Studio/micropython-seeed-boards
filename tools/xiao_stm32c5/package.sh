@@ -19,9 +19,7 @@ fi
 rm -rf "$PACKAGE_DIR"
 mkdir -p "$PACKAGE_DIR/firmware" "$PACKAGE_DIR/tests"
 cp "$UF2" "$PACKAGE_DIR/firmware/"
-for t in xiao_stm32c5_base_test.py xiao_stm32c5_can_test.py \
-         xiao_stm32c5_full_test.py xiao_stm32c5_spi_test.py \
-         can_interconnect.py; do
+for t in xiao_stm32c5_full_test.py can_interconnect.py; do
     cp "$ROOT/example/$t" "$PACKAGE_DIR/tests/"
 done
 cp "$ROOT/release/xiao_stm32c5/README.md" "$PACKAGE_DIR/README.md"
