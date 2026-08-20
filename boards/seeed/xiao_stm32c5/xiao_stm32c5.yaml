@@ -10,6 +10,7 @@ flash: 488
 supported:
   - gpio
   - i2c
+  - spi
   - uart
   - watchdog
   - adc

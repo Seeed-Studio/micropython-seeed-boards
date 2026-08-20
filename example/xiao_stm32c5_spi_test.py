@@ -1,26 +1,17 @@
-"""XIAO STM32C5 SPI loopback test (bit-banged SoftSPI).
+"""XIAO STM32C5 SPI loopback test (hardware SPI3).
 
-The XIAO header carries no hardware SPI on this board: D8 (PA15) has no
-SPI-SCK alternate function (STM32C5A3 datasheet DS15137 Table 14), so the
-D8/D9/D10 header pins are driven by machine.SoftSPI instead of a hardware
-SPI peripheral.
+The header SPI is hardware SPI3 on the current board revision:
+D8 (PE2) = SCK, D9 (PB0) = MISO, D10 (PB15) = MOSI. The pin mux is fixed
+by the board device tree, so XiaoSPI only takes the bus id and baud rate.
 
-Wiring: short D10 (MOSI, PB15) to D9 (MISO, PB0) with a jumper wire.
-D8 (SCK, PA15) is controller-driven and needs no connection.
+Wiring: short D10 (MOSI) to D9 (MISO) with a jumper wire. D8 (SCK) is
+controller-driven and needs no connection.
 
 Run from the REPL with:
     import xiao_stm32c5_spi_test as t; t.main()
 """
-from machine import Pin, SoftSPI
+from boards.xiao import XiaoSPI
 
-BOARD_HEADER = "XIAO STM32C5 SoftSPI loopback test"
-
-# Header pin -> GPIO: D8 = SCK = PA15, D9 = MISO = PB0, D10 = MOSI = PB15.
-SCK = ("gpioa", 15)
-MISO = ("gpiob", 0)
-MOSI = ("gpiob", 15)
-
-# Two rates: a conservative one and a faster one to shake out timing.
 BAUDRATES = (250000, 1000000)
 
 PATTERNS = (
@@ -60,20 +51,13 @@ def _run(spi, baudrate):
 
 
 def main():
-    print(BOARD_HEADER)
+    print("XIAO STM32C5 SPI3 loopback test")
     print("Wiring: jumper D10 (MOSI) <-> D9 (MISO); D8 = SCK (unconnected)")
     print("")
+    # XiaoSPI(spi_id, baudrate, sck, mosi, miso) -- the pin numbers are
+    # accepted for API parity but ignored: SPI3 pins come from the DTS.
     for baudrate in BAUDRATES:
-        spi = SoftSPI(
-            baudrate=baudrate,
-            polarity=0,
-            phase=0,
-            bits=8,
-            firstbit=SoftSPI.MSB,
-            sck=Pin(SCK, Pin.OUT),
-            mosi=Pin(MOSI, Pin.OUT),
-            miso=Pin(MISO, Pin.IN),
-        )
+        spi = XiaoSPI(0, baudrate, 8, 10, 9)
         try:
             _run(spi, baudrate)
         finally:

@@ -14,9 +14,9 @@
 MicroPython GPIO, UART, I2C, ADC, PWM, LittleFS, and CAN/FDCAN with
 bounded receive timeout; `time.localtime` / `time.gmtime` / `time.mktime`
 and `machine.RTC` (LSE-backed hardware RTC, with software fallback);
-header SPI through `machine.SoftSPI`; frozen XIAO board helpers
-(`boards.xiao`); test scripts for peripherals, CAN, and SPI loopback
-under `tests/`.
+hardware SPI3 on the header (D8/PE2 SCK, D9/PB0 MISO, D10/PB15 MOSI);
+frozen XIAO board helpers (`boards.xiao`); test scripts for peripherals,
+CAN, and SPI loopback under `tests/`.
 
 ## Hardware qualification
 
@@ -32,7 +32,6 @@ formal release:
 - Wrong/incompatible UF2 recovery:
 - UART / ADC / PWM / FDCAN / I2C / LED / GPIO / IMU / battery / SPI results:
 
-Known limitations: the XIAO header has no hardware SPI (D8/PA15 lacks an
-SPI-SCK alternate function, DS15137 Table 14) — SPI is provided via
-`machine.SoftSPI`; `time.time()` counts from boot, wall-clock time is kept
-by `machine.RTC()`.
+Known limitations: `time.time()` counts from boot, wall-clock time is kept
+by `machine.RTC()`; the header SPI pins are fixed by the device tree
+(no runtime pin remapping for SPI).

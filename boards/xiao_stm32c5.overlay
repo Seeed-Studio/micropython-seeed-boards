@@ -10,8 +10,10 @@
         compatible = "gpio-leds";
 
         bat_en: bat_en {
-            gpios = <&gpioe 2 GPIO_ACTIVE_HIGH>;
-            label = "BAT_EN/PE2";
+            /* BAT_EN moved to PA15 on the board revision that wired D8
+             * to PE2 (SPI3_SCK); PE2 previously carried this control. */
+            gpios = <&gpioa 15 GPIO_ACTIVE_HIGH>;
+            label = "BAT_EN/PA15";
         };
     };
 

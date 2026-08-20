@@ -112,7 +112,7 @@ def print_help():
     print("External test prerequisites:")
     print("  uart: connect PA9 to PA10 only when the REPL is not in use")
     print("  pwm: observe internal PA8/TIM1_CH1 test point with a scope")
-    print("  battery: connect a supported battery; BAT_EN is PE2, sense is PA4")
+    print("  battery: connect a supported battery; BAT_EN is PA15, sense is PA4")
 
 
 def test_status():
@@ -125,7 +125,7 @@ def test_status():
         print("pins: D0-D3=ADC, D4/D5=I2C1, D6/D7=USART1")
         print("can: default FDCAN2 on PB5/PB13")
         print("imu: I2C2 PB3/PB4, address 0x6A")
-        print("battery: BAT_EN PE2, ADC1_IN4 PA4, divider 2:1")
+        print("battery: BAT_EN PA15, ADC1_IN4 PA4, divider 2:1")
         return _result("status", "PASS")
     except Exception as exc:
         return _result("status", "FAIL", exc)

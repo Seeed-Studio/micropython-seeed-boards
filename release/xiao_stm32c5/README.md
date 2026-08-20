@@ -53,24 +53,26 @@ import xiao_stm32c5_spi_test   as t; t.main()  # SPI loopback (see wiring)
 helper API (`from boards.xiao import XiaoPin, XiaoADC, XiaoPWM, XiaoI2C,
 XiaoSPI, XiaoUART, XiaoCAN`) is frozen into the firmware.
 
-## SPI — bit-banged, not hardware
+## SPI — hardware SPI3
 
-The XIAO header SPI pins cannot reach a hardware SPI peripheral: **D8
-(PA15) has no SPI-SCK alternate function** (STM32C5A3 datasheet DS15137,
-Table 14). D9 (PB0) and D10 (PB15) carry MISO/MOSI functions but a bus
-without SCK is unusable, so the board provides SPI through
-`machine.SoftSPI` (bit-banged) on the same pins:
+The header SPI is hardware **SPI3**: D8 (PE2) = SCK, D9 (PB0) = MISO,
+D10 (PB15) = MOSI. (Board revision note: the earlier revision wired D8 to
+PA15, which has no SPI-SCK alternate function — current boards route D8
+to PE2 and repurpose PA15 as BAT_EN.)
 
 ```python
 from boards.xiao import XiaoSPI
-spi = XiaoSPI(0, 500000)   # sck=D8, mosi=D10, miso=D9, SPI mode 0
+spi = XiaoSPI(0, 500000)   # hardware SPI3, mode 0, pins fixed by DTS
 rx = bytearray(4)
 spi.write_readinto(b"\x9f\x00\x00\x00", rx)   # e.g. flash JEDEC-ID
 ```
 
+`machine.SPI("spi3")` works directly as well. The pin mux is fixed by the
+board device tree, so explicit sck/mosi/miso arguments are not accepted;
+drive a chip-select with any free GPIO (for example `XiaoPin(1)`).
+
 `xiao_stm32c5_spi_test.py` expects a jumper wire between D10 (MOSI) and
-D9 (MISO) and verifies every pattern at two baud rates. Keep wire runs
-short; SoftSPI over jumper wires is reliable up to a few hundred kHz.
+D9 (MISO) and verifies every pattern at two baud rates.
 
 ## Pin table
 
@@ -79,9 +81,9 @@ short; SoftSPI over jumper wires is reliable up to a few hundred kHz.
 | D0–D3 | PA0–PA3 | ADC1_IN0–IN3, GPIO |
 | D4 / D5 | PB7 / PB6 | I2C1 SDA / SCL |
 | D6 / D7 | PA9 / PA10 | USART1 TX / RX (spare UART — the REPL is USB CDC) |
-| D8 | PA15 | SoftSPI SCK (no hardware SCK AF — see erratum above) |
-| D9 | PB0 | SoftSPI MISO |
-| D10 | PB15 | SoftSPI MOSI |
+| D8 | PE2 | SPI3 SCK |
+| D9 | PB0 | SPI3 MISO |
+| D10 | PB15 | SPI3 MOSI |
 | D11 / D12 | PB8 / PB9 | FDCAN1 RX / TX |
 | D13 / D14 | PB5 / PB13 | FDCAN2 RX / TX |
 | D15 | PB14 | CAN transceiver standby (active-high) |
@@ -92,7 +94,6 @@ filesystem, battery sense on PA4/ADC1_IN4 with enable pin PE2.
 
 ## Known limitations
 
-- No hardware SPI on the header (D8/PA15 erratum) — use `machine.SoftSPI`.
 - `time.time()` is boot-relative; wall-clock time lives in
   `machine.RTC().datetime()`.
 - The package is not a formal release until real hardware passes the
