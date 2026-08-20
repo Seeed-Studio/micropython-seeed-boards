@@ -28,8 +28,6 @@ cp "$ROOT/release/xiao_stm32c5/README.md" "$PACKAGE_DIR/README.md"
 sed "s/{{VERSION}}/$VERSION/g" \
     "$ROOT/release/xiao_stm32c5/RELEASE_NOTES.md" > "$PACKAGE_DIR/RELEASE_NOTES.md"
 cp "$ROOT/LICENSE" "$PACKAGE_DIR/LICENSE"
-cp "$ROOT/tools/xiao_stm32c5/flash.sh" "$PACKAGE_DIR/flash_xiao_stm32c5.sh"
-chmod +x "$PACKAGE_DIR/flash_xiao_stm32c5.sh"
 
 if command -v sha256sum >/dev/null 2>&1; then
     (cd "$PACKAGE_DIR" && sha256sum firmware/micropython-xiao-stm32c5.uf2 tests/*.py) \
