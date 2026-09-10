@@ -1,11 +1,3 @@
-littlefs_storage:
-  address: 0x1E2000
-  end_address: 0x1E5000
-  placement:
-    before:
-    - end
-  region: flash_primary
-  size: 0x3000
 otp:
   address: 0xFFD500
   end_address: 0xFFD980
