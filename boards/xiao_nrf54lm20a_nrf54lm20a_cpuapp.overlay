@@ -8,8 +8,11 @@
 /delete-node/ &storage_partition;
 
 /* The board's user storage is the external 64-Mbit PY25Q64HA SPI NOR.
- * Keep the MCUboot/app partitions in internal RRAM and expose the external
- * flash as the MicroPython filesystem block device. */
+ * The CI builds this board without sysbuild (--no-sysbuild), so the
+ * devicetree partitions below are authoritative: the MCUboot/image slot
+ * labels in internal RRAM stay unused, the application links at the start
+ * of cpuapp_rram, and the whole external chip is the MicroPython
+ * filesystem block device. */
 &py25q64 {
 	status = "okay";
 
@@ -22,6 +25,15 @@
 			label = "storage";
 			reg = <0x0 0x800000>;
 		};
+	};
+};
+
+/* Without a bootloader the application must not link into the 449 KiB
+ * slot0 partition; drop the chosen code-partition so it links at the
+ * start of the internal RRAM instead. */
+/ {
+	chosen {
+		/delete-property/ zephyr,code-partition;
 	};
 };
 
