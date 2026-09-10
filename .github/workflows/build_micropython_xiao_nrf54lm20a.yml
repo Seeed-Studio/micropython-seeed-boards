@@ -95,16 +95,16 @@ jobs:
         with:
           name: xiao-nrf54lm20a-firmware
           path: |
-            build_nrf54lm20a/zephyr/zephyr/zephyr.elf
-            build_nrf54lm20a/zephyr/zephyr/zephyr.hex
+            build_nrf54lm20a/zephyr/zephyr.elf
+            build_nrf54lm20a/zephyr/zephyr.hex
 
       # Upload Xiao nRF54LM20A artifacts to Release (only on release event)
       - name: Upload Xiao nRF54LM20A artifacts to Release
         if: github.event_name == 'release'
         run: |
-          mv build_nrf54lm20a/zephyr/zephyr/zephyr.hex build_nrf54lm20a/zephyr/zephyr/xiao_nrf54lm20a.hex
+          mv build_nrf54lm20a/zephyr/zephyr.hex build_nrf54lm20a/zephyr/xiao_nrf54lm20a.hex
           gh release upload ${{ github.event.release.tag_name }} \
-            build_nrf54lm20a/zephyr/zephyr/xiao_nrf54lm20a.hex \
+            build_nrf54lm20a/zephyr/xiao_nrf54lm20a.hex \
             --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
