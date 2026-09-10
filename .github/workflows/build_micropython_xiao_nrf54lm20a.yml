@@ -61,20 +61,30 @@ jobs:
           cd ~/zephyr-sdk/zephyr-sdk-0.17.0
           ./setup.sh -t all -h
 
+      # The official MicroPython v1.27.0 pin still uses the pre-Zephyr-4.x
+      # Bluetooth advertiser option names (BT_LE_ADV_OPT_CONNECTABLE /
+      # BT_LE_ADV_OPT_ONE_TIME) that NCS v3.3.0 removed; the pinned patch set
+      # carries the rename.  Same step as the nRF54LM20B job.
+      - name: Apply pinned MicroPython compatibility patch
+        run: ./tools/apply_micropython_patches.sh
+
       # Build MicroPython for Xiao nRF54LM20A
       # Uses lib/micropython directly (the submodule pin) -- no PR checkout override.
+      # --no-sysbuild (like the nRF54LM20B job): with sysbuild the NCS
+      # partition manager takes over the layout and puts littlefs_storage
+      # back on the internal RRAM, which defeats the external-NOR storage
+      # partition defined in the overlay.
       - name: Build for Xiao nRF54LM20A
         run: |
           source ncs/zephyr/zephyr-env.sh
           export PROJECT_DIR=$(pwd)
           west build --build-dir ./build_nrf54lm20a ./lib/micropython/ports/zephyr \
             --pristine \
+            --no-sysbuild \
             --board xiao_nrf54lm20a/nrf54lm20a/cpuapp \
-            --sysbuild \
             -- \
             -DBOARD_ROOT=$PROJECT_DIR/ \
             -DEXTRA_DTC_OVERLAY_FILE=$PROJECT_DIR/boards/xiao_nrf54lm20a_nrf54lm20a_cpuapp.overlay \
-            -DPM_STATIC_YML_FILE=$PROJECT_DIR/boards/pm_static_xiao_nrf54lm20a_nrf54lm20a_cpuapp.yml \
             -DEXTRA_CONF_FILE=$PROJECT_DIR/boards/xiao_nrf54lm20a_nrf54lm20a_cpuapp.conf
         env:
           ZEPHYR_SDK_INSTALL_DIR: ~/zephyr-sdk/zephyr-sdk-0.17.0
@@ -85,16 +95,16 @@ jobs:
         with:
           name: xiao-nrf54lm20a-firmware
           path: |
-            build_nrf54lm20a/zephyr/zephyr/zephyr.elf
-            build_nrf54lm20a/zephyr/zephyr/zephyr.hex
+            build_nrf54lm20a/zephyr/zephyr.elf
+            build_nrf54lm20a/zephyr/zephyr.hex
 
       # Upload Xiao nRF54LM20A artifacts to Release (only on release event)
       - name: Upload Xiao nRF54LM20A artifacts to Release
         if: github.event_name == 'release'
         run: |
-          mv build_nrf54lm20a/zephyr/zephyr/zephyr.hex build_nrf54lm20a/zephyr/zephyr/xiao_nrf54lm20a.hex
+          mv build_nrf54lm20a/zephyr/zephyr.hex build_nrf54lm20a/zephyr/xiao_nrf54lm20a.hex
           gh release upload ${{ github.event.release.tag_name }} \
-            build_nrf54lm20a/zephyr/zephyr/xiao_nrf54lm20a.hex \
+            build_nrf54lm20a/zephyr/xiao_nrf54lm20a.hex \
             --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
