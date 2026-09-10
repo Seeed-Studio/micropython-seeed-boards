@@ -61,6 +61,13 @@ jobs:
           cd ~/zephyr-sdk/zephyr-sdk-0.17.0
           ./setup.sh -t all -h
 
+      # The official MicroPython v1.27.0 pin still uses the pre-Zephyr-4.x
+      # Bluetooth advertiser option names (BT_LE_ADV_OPT_CONNECTABLE /
+      # BT_LE_ADV_OPT_ONE_TIME) that NCS v3.3.0 removed; the pinned patch set
+      # carries the rename.  Same step as the nRF54LM20B job.
+      - name: Apply pinned MicroPython compatibility patch
+        run: ./tools/apply_micropython_patches.sh
+
       # Build MicroPython for Xiao nRF54LM20A
       # Uses lib/micropython directly (the submodule pin) -- no PR checkout override.
       - name: Build for Xiao nRF54LM20A
