@@ -46,12 +46,22 @@ jobs:
       # Build MicroPython for Xiao RA4M1
       - name: Build for Xiao RA4M1
         run: |
-          cd lib && rm -r micropython || true
-          git clone https://github.com/micropython/micropython.git
-          cd micropython && git submodule update --init --recursive && gh pr checkout 16409
-          cd ports/renesas-ra 
-          sed -i '301,302c\    mp_cstack_init_with_top(&_estack, (char *)&_estack - (char *)&_sstack);' main.c
-          sed -i '170s/#define MICROPY_FATFS_ENABLE_LFN.*/#define MICROPY_FATFS_ENABLE_LFN       (1)/' mpconfigport.h
+          # Build at the repo-wide MicroPython pin (v1.27.0, the lib/micropython
+          # submodule checked out by actions/checkout) and apply the repo patch
+          # set.  The old flow cloned micropython fresh and checked out upstream
+          # PR #16409 (open, unmerged since 2024-12).  What this board actually
+          # needs from that PR is only the USB LDO VDCEN enable -- the XIAO
+          # RA4M1 powers USB from the internal LDO (USB_CFG_LDO_REGULATOR =
+          # ENABLE in the board's FSP config), now carried as
+          # 0002-renesas-ra-usb-ldo-vdcen.patch.  The WEACT board profile half
+          # of #16409 is not needed: this repo supplies the board via
+          # boards/seeed/xiao_ra4m1 and the port's native BOARD_DIR support.
+          # v1.27.0 already ships the RA4M1 family (EK_RA4M1, RA4M1_CLICKER,
+          # ra4m1_af.csv), and both old sed hacks are obsolete: main.c now
+          # contains mp_cstack_init_with_top() as-is, and
+          # MICROPY_FATFS_ENABLE_LFN is (2) (enabled, dynamic buffer).
+          ./tools/apply_micropython_patches.sh
+          cd lib/micropython/ports/renesas-ra
           make BOARD_DIR=../../../../boards/seeed/xiao_ra4m1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
