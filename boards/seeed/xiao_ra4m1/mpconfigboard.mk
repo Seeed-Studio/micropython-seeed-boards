@@ -1,6 +1,6 @@
 CMSIS_MCU = RA4M1
 MCU_SERIES = m4
-LD_FILES = boards/WEACT_RA4M1_CORE/ra4m1_ek.ld
+LD_FILES = $(BOARD_DIR)/ra4m1_ek.ld
 
 # MicroPython settings
 MICROPY_VFS_LFS2 = 0
@@ -15,4 +15,5 @@ CFLAGS+=-DDEFAULT_DBG_CH=0 \
           -DBOARD_TUD_RHPORT=0
 
 # Don't include default frozen modules because MCU is tight on flash space
-FROZEN_MANIFEST ?= boards/WEACT_RA4M1_CORE/manifest.py
+# (the board's own minimal manifest: asyncio only)
+FROZEN_MANIFEST ?= $(BOARD_DIR)/manifest.py
