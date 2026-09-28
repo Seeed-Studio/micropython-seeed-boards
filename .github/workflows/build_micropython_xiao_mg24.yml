@@ -66,12 +66,19 @@ jobs:
       - name: Build for Xiao MG24
         run: |
           source zephyrproject/zephyr/zephyr-env.sh
-          pushd lib/micropython/ports/zephyr
-          git fetch origin
-          git reset --hard origin/master
-          gh pr checkout 18030
-          sed -i '116s/4096)/4096 * 2)/' ./main.c
-          popd
+          # Build at the repo-wide MicroPython pin (v1.27.0, the lib/micropython
+          # submodule checked out by actions/checkout) and apply the repo patch
+          # set.  The old override (reset --hard origin/master + gh pr checkout
+          # 18030) depended on a closed, unmerged upstream PR whose source fork
+          # was deleted ("upload-pack: not our ref").  This board genuinely uses
+          # USER_C_MODULES, and 0001 already carries the PR's one-file wiring
+          # (include py/usermod.cmake + MICROPY_SOURCE_USERMOD), so the
+          # -DUSER_C_MODULES below keeps working: py/usermod.cmake appends
+          # /micropython.cmake to directory entries.
+          # The old 'sed 4096 -> 4096 * 2' on main.c is superseded: v1.27.0
+          # moved flash storage to zephyr_storage.c, which reads
+          # erase_block_size from the devicetree (4096 is only the fallback).
+          ./tools/apply_micropython_patches.sh
 
           export ZEPHYR_SDK_INSTALL_DIR="~/zephyr-sdk/zephyr-sdk-0.17.0"
           export PATH="$ZEPHYR_SDK_INSTALL_DIR:$PATH"
