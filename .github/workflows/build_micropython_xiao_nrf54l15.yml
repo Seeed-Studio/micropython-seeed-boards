@@ -65,11 +65,14 @@ jobs:
       - name: Build for Xiao nRF54L15
         run: |
           source ncs/zephyr/zephyr-env.sh
-          pushd lib/micropython/ports/zephyr
-          git fetch origin
-          git reset --hard origin/master
-          gh pr checkout 18030
-          popd
+          # Build at the repo-wide MicroPython pin (v1.27.0, the lib/micropython
+          # submodule checked out by actions/checkout), like the nRF54LM20A/B
+          # jobs.  The removed override (reset --hard origin/master + gh pr
+          # checkout 18030) depended on a closed, unmerged upstream PR whose
+          # source fork has been deleted, so it failed with
+          # "upload-pack: not our ref".  This board does not pass
+          # USER_C_MODULES, so the PR's one-file usermod plumbing was a no-op.
+          echo "micropython: $(git -C lib/micropython describe --tags --always)"
 
           export PROJECT_DIR=$(pwd)
           sed -i '10s/#include <version.h>/#include <zephyr\/version.h>/' ncs/nrf/lib/boot_banner/banner.c
