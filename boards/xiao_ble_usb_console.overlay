@@ -1,0 +1,19 @@
+/*
+ * Route the MicroPython console over USB CDC ACM on the XIAO nRF52840.
+ * Pattern from micropython ports/zephyr/boards/rpi_pico.overlay; the nRF52
+ * USBD peripheral node additionally needs status = "okay" (disabled in the
+ * SoC dtsi by default).
+ */
+
+/ {
+	chosen {
+		zephyr,console = &cdc_acm_uart0;
+	};
+};
+
+&zephyr_udc0 {
+	status = "okay";
+	cdc_acm_uart0: cdc_acm_uart0 {
+		compatible = "zephyr,cdc-acm-uart";
+	};
+};

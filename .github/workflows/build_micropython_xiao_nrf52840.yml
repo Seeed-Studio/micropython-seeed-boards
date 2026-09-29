@@ -73,9 +73,15 @@ jobs:
           # "upload-pack: not our ref".  This board does not pass
           # USER_C_MODULES, so the PR's one-file usermod plumbing was a no-op.
           echo "micropython: $(git -C lib/micropython describe --tags --always)"
-          
+
           sed -i '10s/#include <version.h>/#include <zephyr\/version.h>/' ncs/nrf/lib/boot_banner/banner.c
-          west build --build-dir ./build_nrf52840 ./lib/micropython/ports/zephyr --pristine --board xiao_ble
+          # USB CDC ACM console: without this the firmware is headless (boots
+          # but never enumerates a serial port) — verified on hardware for
+          # both the v1.27.0 build and the released v1.3 xiao_nrf52840.uf2.
+          export PROJECT_DIR=$(pwd)
+          west build --build-dir ./build_nrf52840 ./lib/micropython/ports/zephyr --pristine --board xiao_ble -- \
+            -DEXTRA_CONF_FILE=$PROJECT_DIR/boards/xiao_ble_usb_console.conf \
+            -DEXTRA_DTC_OVERLAY_FILE=$PROJECT_DIR/boards/xiao_ble_usb_console.overlay
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ZEPHYR_SDK_INSTALL_DIR: ~/zephyr-sdk/zephyr-sdk-0.17.0
