@@ -1,0 +1,13 @@
+diff --git a/py/mkrules.cmake b/py/mkrules.cmake
+index e3d769cc5..4e0fa11f0 100644
+--- a/py/mkrules.cmake
++++ b/py/mkrules.cmake
+@@ -151,7 +151,7 @@ add_custom_command(
+ 
+ add_custom_command(
+     OUTPUT ${MICROPY_QSTRDEFS_PREPROCESSED}
+-    COMMAND cat ${MICROPY_QSTRDEFS_PY} ${MICROPY_QSTRDEFS_PORT} ${MICROPY_QSTRDEFS_COLLECTED} | sed "s/^Q(.*)/\"&\"/" | ${CMAKE_C_COMPILER} -E ${MICROPY_CPP_FLAGS} - | sed "s/^\\\"\\(Q(.*)\\)\\\"/\\1/" > ${MICROPY_QSTRDEFS_PREPROCESSED}
++    COMMAND ${Python3_EXECUTABLE} ${MICROPY_PY_DIR}/makeqstrpp.py ${CMAKE_C_COMPILER} ${MICROPY_QSTRDEFS_PREPROCESSED} ${MICROPY_CPP_FLAGS} -- ${MICROPY_QSTRDEFS_PY} ${MICROPY_QSTRDEFS_PORT} ${MICROPY_QSTRDEFS_COLLECTED}
+     DEPENDS ${MICROPY_QSTRDEFS_PY}
+         ${MICROPY_QSTRDEFS_PORT}
+         ${MICROPY_QSTRDEFS_COLLECTED}

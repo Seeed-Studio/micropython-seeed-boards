@@ -31,16 +31,22 @@ class xiao_nrf54lm20a:
         return xiao_pin[pin]
 
     def adc(adc):
+        # XiaoADC() takes an XIAO silk-screen D pin number, not an nRF SAADC
+        # AIN number (same convention as the nRF54LM20B board; the XIAO
+        # connector wiring of the 20A and 20B boards is identical).  The
+        # nRF54LM20A ADC-capable pins are:
+        # D0/D1/D2/D3/D4/D8/D9/D10 = AIN0/AIN1/AIN2/AIN3/AIN7/AIN6/AIN5/AIN4.
+        # Battery voltage is read from the nPM1300 fuel gauge, not an ADC
+        # channel (use the full-test "battery" command).
         xiao_adc = {
             0: ("adc", 0),
             1: ("adc", 1),
             2: ("adc", 2),
             3: ("adc", 3),
-            4: ("adc", 4),
-            5: ("adc", 5),
-            6: ("adc", 6),
-            7: ("adc", 7),
-            "vbat": ("adc", 7),
+            4: ("adc", 7),
+            8: ("adc", 6),
+            9: ("adc", 5),
+            10: ("adc", 4),
         }
         return xiao_adc[adc]
 

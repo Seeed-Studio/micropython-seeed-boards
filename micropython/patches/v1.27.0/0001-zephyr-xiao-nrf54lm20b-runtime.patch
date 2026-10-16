@@ -40,7 +40,7 @@ index 89ad12f185daa71e1c697583a78b8c126b15dbfa..3999465ba257968dbc84a117006daf50
  
  #include "modmachine.h"
  
-+#if defined(CONFIG_BOARD_XIAO_NRF54LM20B)
++#if defined(CONFIG_BOARD_XIAO_NRF54LM20B) || defined(CONFIG_BOARD_XIAO_NRF54LM20A)
 +extern const mp_obj_type_t rtc_type;
 +#define MICROPY_PY_MACHINE_RTC_ENTRY \
 +    { MP_ROM_QSTR(MP_QSTR_RTC), MP_ROM_PTR(&rtc_type) },
