@@ -5,24 +5,38 @@
  */
 
 #include "xiao_nrf54lm20a_nrf54lm20a-pinctrl.dtsi"
+#include <zephyr/dt-bindings/regulator/npm13xx.h>
 
 / {
 	leds {
 		compatible = "gpio-leds";
-
-		red_led: red_led {
-			gpios = <&gpio1 22 GPIO_ACTIVE_LOW>;
-			label = "RED_LED";
-		};
 
 		blue_led: blue_led {
 			gpios = <&gpio1 23 GPIO_ACTIVE_LOW>;
 			label = "BLUE_LED";
 		};
 
+		red_led: red_led {
+			gpios = <&gpio1 22 GPIO_ACTIVE_LOW>;
+			label = "RED_LED";
+		};
+
 		green_led: green_led {
 			gpios = <&gpio1 24 GPIO_ACTIVE_LOW>;
 			label = "GREEN_LED";
+		};
+	};
+
+	pwmleds {
+		compatible = "pwm-leds";
+		pwm_led0: pwm_led_0 {
+			pwms = <&pwm20 0 PWM_MSEC(20) PWM_POLARITY_INVERTED>;
+		};
+		pwm_led1: pwm_led_1 {
+			pwms = <&pwm20 1 PWM_MSEC(20) PWM_POLARITY_INVERTED>;
+		};
+		pwm_led2: pwm_led_2 {
+			pwms = <&pwm20 2 PWM_MSEC(20) PWM_POLARITY_INVERTED>;
 		};
 	};
 
@@ -40,8 +54,9 @@
 		compatible = "gpio-i2c";
 		#address-cells = <1>;
 		#size-cells = <0>;
-		sda-gpios = <&gpio1 15 GPIO_ACTIVE_HIGH>;
-		scl-gpios = <&gpio1 16 GPIO_ACTIVE_HIGH>;
+		/* PMIC I2C: P1.18 = SDA, P1.17 = SCL. */
+		sda-gpios = <&gpio1 18 GPIO_ACTIVE_HIGH>;
+		scl-gpios = <&gpio1 17 GPIO_ACTIVE_HIGH>;
 		clock-frequency = <100000>;
 		status = "okay";
 
@@ -50,7 +65,7 @@
 			reg = <0x6b>;
 			pmic_charger: charger {
 				compatible = "nordic,npm1300-charger";
-				term-microvolt = <4150000>;
+				term-microvolt = <4200000>;
 				term-warm-microvolt = <4000000>;
 				current-microamp = <150000>;
 				dischg-limit-microamp = <1000000>;
@@ -63,19 +78,53 @@
 			regulators {
 				compatible = "nordic,npm1300-regulator";
 
-				LDO1 {
-					regulator-min-microvolt = <1800000>;
-					regulator-max-microvolt = <1800000>;
+				/*
+				 * BUCK2 supplies VSYS_3V3, which powers both the nRF54
+				 * application and the SAMD11 USB debugger. Keep this rail
+				 * enabled during XIAO nRF54LM20A development; disabling it
+				 * also removes power from the USB debugger.
+				 */
+				vsys_3v3: BUCK2 {
+					regulator-always-on;
+					regulator-min-microvolt = <3300000>;
+					regulator-max-microvolt = <3300000>;
+				};
+
+				/*
+				 * LDO1 powers the IMU and the PDM microphone. It is
+				 * enabled at boot so samples no longer hand-roll
+				 * regulator_enable(); apps may still disable it for
+				 * low power. Safe because the board Kconfig orders
+				 * nPM13xx regulator init (91/92) after the charger
+				 * (90) raises the VBUS current limit above LDO1's
+				 * soft-start inrush.
+				 */
+				imu_vdd: dmic_vdd: LDO1 {
+					regulator-init-microvolt = <3300000>;
+					regulator-min-microvolt = <3300000>;
+					regulator-max-microvolt = <3300000>;
+					regulator-initial-mode = <NPM13XX_LDSW_MODE_LDO>;
+					regulator-allowed-modes = <NPM13XX_LDSW_MODE_LDO>;
 					regulator-boot-on;
 				};
+			};
+
+			pmic_leds: leds {
+				compatible = "nordic,npm1300-led";
+				nordic,led0-mode = "error";
+				nordic,led1-mode = "host";
+				nordic,led2-mode = "host";
 			};
 		};
 	};
 
 	aliases {
-		led0 = &red_led;
-		led1 = &blue_led;
+		led0 = &blue_led;
+		led1 = &red_led;
 		led2 = &green_led;
+		pwm-led0 = &pwm_led0;
+		pwm-led1 = &pwm_led1;
+		pwm-led2 = &pwm_led2;
 		sw0 = &button0;
 		watchdog0 = &wdt31;
 		imu0 = &lsm6ds3tr_c;
