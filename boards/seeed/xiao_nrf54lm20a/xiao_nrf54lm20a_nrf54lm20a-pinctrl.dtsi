@@ -123,18 +123,26 @@
 
 	/omit-if-no-ref/ pwm20_default: pwm20_default {
 		group1 {
-			psels = <NRF_PSEL(PWM_OUT0, 1, 22)>,
-				<NRF_PSEL(PWM_OUT1, 1, 23)>,
-				<NRF_PSEL(PWM_OUT2, 1, 24)>;
+			/* XIAO expansion header D0/D1/D2/D3 (master baseline).  Do NOT
+			 * bind PWM20 outputs to the common-anode RGB LED pins
+			 * (P1.22/P1.23/P1.24): enabling the PWM peripheral drives every
+			 * psel-bound pin at its idle level and lights the LED.  V2.0
+			 * remaps channel 0 to D8/P1.04 (the 20B PCB convention) in
+			 * xiao_nrf54lm20a_nrf54lm20a_cpuapp_2_0_0.overlay. */
+			psels = <NRF_PSEL(PWM_OUT0, 1, 0)>,
+				<NRF_PSEL(PWM_OUT1, 1, 31)>,
+				<NRF_PSEL(PWM_OUT2, 1, 30)>,
+				<NRF_PSEL(PWM_OUT3, 1, 29)>;
 		};
 	};
 
 	/omit-if-no-ref/ pwm20_sleep: pwm20_sleep {
 		group1 {
-			psels = <NRF_PSEL(PWM_OUT0, 1, 22)>,
-				<NRF_PSEL(PWM_OUT1, 1, 23)>,
-				<NRF_PSEL(PWM_OUT2, 1, 24)>;
-			 low-power-enable;
+			psels = <NRF_PSEL(PWM_OUT0, 1, 0)>,
+				<NRF_PSEL(PWM_OUT1, 1, 31)>,
+				<NRF_PSEL(PWM_OUT2, 1, 30)>,
+				<NRF_PSEL(PWM_OUT3, 1, 29)>;
+			low-power-enable;
 		};
 	};
 
