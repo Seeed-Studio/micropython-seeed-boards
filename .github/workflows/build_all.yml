@@ -27,6 +27,13 @@ jobs:
       trigger: ${{ github.event_name }}
     secrets: inherit
 
+  build_nrf54lm20a_v2:
+    name: Build Xiao nRF54LM20A V2 Firmware
+    uses: ./.github/workflows/build_micropython_xiao_nrf54lm20a_v2.yml
+    with:
+      trigger: ${{ github.event_name }}
+    secrets: inherit
+
   build_nrf54lm20b:
     name: Build Xiao nRF54LM20B Firmware
     uses: ./.github/workflows/build_micropython_xiao_nrf54lm20b.yml
