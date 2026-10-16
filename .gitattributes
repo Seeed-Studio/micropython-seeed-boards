@@ -1,0 +1,3 @@
+# Patch files must keep LF endings: tools/apply_micropython_patches.sh feeds
+# them to "git apply", which fails on CRLF checkouts (Windows autocrlf).
+*.patch -text
