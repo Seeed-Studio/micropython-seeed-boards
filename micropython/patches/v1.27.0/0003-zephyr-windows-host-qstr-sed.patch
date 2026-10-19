@@ -1,3 +1,121 @@
+diff --git a/py/makeqstrpp.py b/py/makeqstrpp.py
+new file mode 100644
+index 000000000..6a55d554b
+--- /dev/null
++++ b/py/makeqstrpp.py
+@@ -0,0 +1,112 @@
++# This file is part of the MicroPython project, http://micropython.org/
++#
++# The MIT License (MIT)
++#
++# Copyright (c) 2026 Seeed Studio
++#
++# Permission is hereby granted, free of charge, to any person obtaining a copy
++# of this software and associated documentation files (the "Software"), to deal
++# in the Software without restriction, including without limitation the rights
++# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++# copies of the Software, and to permit persons to whom the Software is
++# furnished to do so, subject to the following conditions:
++#
++# The above copyright notice and this permission notice shall be included in
++# all copies or substantial portions of the Software.
++#
++# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
++# THE SOFTWARE.
++"""Preprocess qstrdefs sources so Q(...) lines survive the C preprocessor.
++
++Replaces the host-shell ``cat ... | sed | cc -E | sed`` pipeline that
++py/mkrules.cmake used for MICROPY_QSTRDEFS_PREPROCESSED. That pipeline
++cannot be expressed portably for cmd.exe on Windows hosts: cmd.exe has no
++backslash escaping, so the ``\\"..\\"`` quote wrapping (and the ``\\"``
++characters inside compiler -D flags) corrupts its quote state and the
++generated batch file misparses.
++
++Behaviour is identical to the pipeline: concatenate the input files, wrap
++every line starting with ``Q(`` in literal double quotes, run ``cc -E``
++with the given flags feeding the data on stdin, strip the quotes from the
++surviving ``"Q(...)"`` lines, and write the result to the output file.
++
++Usage: makeqstrpp.py <cc> <output> [<flag>...] -- <input-file>...
++"""
++
++import subprocess
++import sys
++
++
++def wrap_qstr_lines(data):
++    out = bytearray()
++    for line in data.splitlines(keepends=True):
++        eol = b""
++        if line.endswith(b"\r\n"):
++            eol = b"\r\n"
++        elif line.endswith(b"\n"):
++            eol = b"\n"
++        body = line[: len(line) - len(eol)] if eol else line
++        if body.startswith(b"Q("):
++            out += b'"' + body + b'"'
++        else:
++            out += body
++        out += eol
++    return bytes(out)
++
++
++def unwrap_qstr_lines(data):
++    out = bytearray()
++    for line in data.splitlines(keepends=True):
++        eol = b""
++        if line.endswith(b"\r\n"):
++            eol = b"\r\n"
++        elif line.endswith(b"\n"):
++            eol = b"\n"
++        body = line[: len(line) - len(eol)] if eol else line
++        if body.startswith(b'"Q(') and body.endswith(b')"'):
++            out += body[1:-1]
++        else:
++            out += body
++        out += eol
++    return bytes(out)
++
++
++def main():
++    argv = sys.argv[1:]
++    if len(argv) < 3:
++        print(__doc__)
++        sys.exit(2)
++    cc, output = argv[0], argv[1]
++    rest = argv[2:]
++    try:
++        sep = rest.index("--")
++    except ValueError:
++        print("makeqstrpp.py: missing '--' separator before input files", file=sys.stderr)
++        sys.exit(2)
++    flags, files = rest[:sep], rest[sep + 1 :]
++    if not files:
++        print("makeqstrpp.py: no input files given", file=sys.stderr)
++        sys.exit(2)
++
++    data = b""
++    for path in files:
++        with open(path, "rb") as fh:
++            data += fh.read()
++
++    proc = subprocess.run(
++        [cc, "-E"] + list(flags) + ["-"], input=wrap_qstr_lines(data), stdout=subprocess.PIPE
++    )
++    if proc.returncode != 0:
++        sys.exit(proc.returncode)
++
++    with open(output, "wb") as fh:
++        fh.write(unwrap_qstr_lines(proc.stdout))
++
++
++if __name__ == "__main__":
++    main()
 diff --git a/py/mkrules.cmake b/py/mkrules.cmake
 index e3d769cc5..4e0fa11f0 100644
 --- a/py/mkrules.cmake

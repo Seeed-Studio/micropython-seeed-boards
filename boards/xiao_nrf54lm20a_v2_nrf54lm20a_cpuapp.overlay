@@ -27,6 +27,18 @@
     };
 };
 
+/* The board revision overlay (_2_0_0.overlay) defines a second
+ * zephyr,cdc-acm-uart node (cdc_acm_uart) for Zephyr's standalone CDC
+ * serial backend, pulled in by the platform board Kconfig. MicroPython's
+ * usbd.c owns the single USB device and registers one CDC ACM class per
+ * enabled DT node, so leaving it on exposes TWO CDC interfaces with the
+ * same VID:PID (two host COM ports) and opening the unused instance
+ * kills the USB device (host write timeout, device gone until reset).
+ * Disable it: MicroPython REPL is the only CDC this firmware exposes. */
+&cdc_acm_uart {
+    status = "disabled";
+};
+
 /* Remove the small internal-RRAM storage partition. */
 /delete-node/ &storage_partition;
 
