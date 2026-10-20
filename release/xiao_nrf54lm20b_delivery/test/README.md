@@ -1,27 +1,33 @@
-# XIAO nRF54LM20B 测试脚本
+# XIAO nRF54LM20B test script
 
-测试通过应用固件的 USB CDC ACM REPL 执行。先烧录包内的
-`firmware/zephyr.signed.bin`，连接应用 CDC（`2886:8013`），再运行本目录的
-`xiao_nrf54lm20b_full_test.py`。
+The tests run over the application firmware's USB CDC ACM REPL. First flash
+`firmware/zephyr.signed.bin` from this package, connect to the application
+CDC (`2886:8013`), then run `xiao_nrf54lm20b_full_test.py` from this
+directory.
 
-`boards.xiao` 与 `boards.xiao_nrf54lm20b` 已冻结在固件中；无需、也不应将这两份
-helper 源码上传到文件系统。使用 Thonny 时直接打开并运行
-`xiao_nrf54lm20b_full_test.py` 即可。若使用 mpremote 等工具将测试保存到文件系统，
-只需上传该测试脚本。
+`boards.xiao` and `boards.xiao_nrf54lm20b` are frozen into the firmware;
+there is no need (and it will not work) to upload those helper sources to
+the filesystem. With Thonny, simply open and run
+`xiao_nrf54lm20b_full_test.py`. With mpremote or similar tools, upload
+only the test script to the filesystem.
 
-在普通 `>>>` REPL 中启动测试台：
+Start the test console from the normal `>>>` REPL:
 
 ```python
 import xiao_nrf54lm20b_full_test as test
 test.main()
 ```
 
-只有出现 `XIAO nRF54LM20B test>` 后，`help`、`all`、`adc`、`pwm`、`i2c`、
-`imu`、`uart`、`battery`、`ble`、`pdm`、`led` 和 `exit` 才是测试命令。
-普通 REPL 中输入 `help` 只会得到 Python 内建帮助函数。
+The test commands (`help`, `all`, `adc`, `pwm`, `i2c`, `imu`, `uart`,
+`battery`, `ble`, `pdm`, `led`, `exit`) are only available after the
+`XIAO nRF54LM20B test>` prompt appears. Typing `help` at the plain REPL
+only gives the built-in Python help function.
 
-没有接入跳线或外设的项目会显示 `SKIP`，不代表固件启动失败。UART 回环需
-将 TX P1.8 接 RX P1.9；IMU 使用 P0.08/P0.07。RGB LED 为共阳极、低电平有效。
+Tests report SKIP when no jumper or peripheral is attached — a SKIP does
+not mean the firmware failed to start. The UART test needs TX P1.8 wired
+to RX P1.9 for loopback; the IMU uses P0.08/P0.07. The RGB LED is
+common-anode, active-low.
 
-如果上传文件返回 `OSError: [Errno 19] ENODEV`，先按固件说明初始化一次
-LittleFS；格式化会清除文件系统中的文件。
+If uploading a file returns `OSError: [Errno 19] ENODEV`, initialize the
+LittleFS filesystem once as described in the firmware notes; formatting
+erases the files on the filesystem.
