@@ -23,7 +23,7 @@ UART_BAUD = 115200
 IMU_BUS = "i2c1"           # I2C30, P0.08/P0.07.
 IMU_ADDRESS = 0x6A
 IMU_WHO_AM_I = 0x0F
-IMU_EXPECTED_ID = 0x6A
+IMU_EXPECTED_ID = 0x70     # LSM6DSV16X (was 0x6A on the LSM6DS3TR-C)
 _pass = 0
 _fail = 0
 _skip = 0
@@ -84,7 +84,7 @@ def print_help():
     print("  i2c                  scan I2C22 and IMU I2C30")
     print("  led on|off|blink     control RGB LED blue channel")
     print("  io <pin> [count]     toggle a header GPIO, for example io D0 3")
-    print("  imu                  read LSM6DS3TR-C at I2C address 0x6A")
+    print("  imu                  read LSM6DSV16X at I2C address 0x6A")
     print("  battery              report PMIC fuel-gauge availability")
     print("  ble                  advertise and perform a bounded scan")
     print("  pdm                  capture one short frame from the PDM mic")
@@ -230,20 +230,26 @@ def test_imu():
         bus = _open_i2c(IMU_BUS)
         devices = bus.scan()
         if IMU_ADDRESS not in devices:
-            return _result("IMU", "SKIP", "LSM6DS3TR-C not found at 0x6A")
+            return _result("IMU", "SKIP", "LSM6DSV16X not found at 0x6A")
         who = bus.readfrom_mem(IMU_ADDRESS, IMU_WHO_AM_I, 1)[0]
         if who != IMU_EXPECTED_ID:
             return _result("IMU", "FAIL", "WHO_AM_I=0x{0:02x}".format(who))
-        bus.writeto_mem(IMU_ADDRESS, 0x10, b"\x60")
-        bus.writeto_mem(IMU_ADDRESS, 0x11, b"\x60")
+        # CTRL1/CTRL2 on the LSM6DSV16X: [6:4] OP_MODE (000 = high-performance),
+        # [3:0] ODR (0110 = 120 Hz). The full-scale bits live in CTRL6/CTRL8 and
+        # keep their power-on defaults (+/-2g, +/-125 dps).
+        bus.writeto_mem(IMU_ADDRESS, 0x10, b"\x06")
+        bus.writeto_mem(IMU_ADDRESS, 0x11, b"\x06")
         time.sleep_ms(20)
         data = bus.readfrom_mem(IMU_ADDRESS, 0x20, 14)
+        # 14-byte burst from 0x20: temperature, gyro, then accelerometer; the
+        # register layout is identical to the LSM6DS3TR-C, only the ODR/FS
+        # control bits moved. Temperature: 256 LSB/degC, 0 LSB at 25 degC.
         temp = _read_i16(data, 0) / 256.0 + 25.0
         gyro = [_read_i16(data, 2 + 2 * i) for i in range(3)]
         accel = [_read_i16(data, 8 + 2 * i) for i in range(3)]
         print("[IMU] temp={0:.2f}C gyro_raw={1} accel_raw={2}".format(
             temp, gyro, accel))
-        return _result("IMU", "PASS", "LSM6DS3TR-C WHO_AM_I=0x6A")
+        return _result("IMU", "PASS", "LSM6DSV16X WHO_AM_I=0x70")
     except Exception as exc:
         return _result("IMU", "SKIP", exc)
 
