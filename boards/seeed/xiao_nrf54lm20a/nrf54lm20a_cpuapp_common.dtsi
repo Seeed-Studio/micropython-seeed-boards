@@ -201,13 +201,6 @@ zephyr_udc0: &usbhs {
 
 &i2c30 {
 	status = "okay";
-
-	lsm6ds3tr_c: lsm6ds3tr-c@6a {
-		compatible = "st,lsm6dsl";
-		reg = <0x6a>;
-		irq-gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;
-		status = "okay";
-	};
 };
 
 &adc {

@@ -21,7 +21,7 @@ Hardware
 - NFC
 - USB HS
 - nPM1300 PMIC with battery charging
-- LSM6DS3TR-C 6-axis IMU
+- LSM6DSV16X 6-axis IMU
 - MSM261DGT006 PDM microphone
 - RGB LED
 - User button

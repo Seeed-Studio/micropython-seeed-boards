@@ -111,7 +111,6 @@
 		led2 = &green_led;
 		sw0 = &button0;
 		watchdog0 = &wdt31;
-		imu0 = &lsm6ds3tr_c;
 		dmic20 = &pdm20;
 	};
 };
